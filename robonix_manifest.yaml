@@ -8,7 +8,7 @@ name: robonix-ranger-mini-deploy
 # `cargo run -p robonix-cli --release` or whatever wrapper the user
 # has set up.
 #
-# Each `url:` package is a separate GitHub repo under enkerewpo. `rbnx
+# Each `url:` package is a separate GitHub repo under SysWonder. `rbnx
 # build` clones them into rbnx-boot/cache/<name>/ and runs each
 # package's scripts/build.sh; `rbnx boot` then spawns each one and
 # calls Driver(CMD_INIT, config_json) on its */driver gRPC interface.
