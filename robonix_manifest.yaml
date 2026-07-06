@@ -104,7 +104,7 @@ primitive:
 
   # ── Ranger Mini chassis ─────────────────────────────────────────────
   - name: ranger_chassis
-    url: https://github.com/syswonder/primitive-agilex-rangerminiv3-chassis-rbnx
+    url: https://github.com/syswonder/primitive-agilex-ranger_mini_v3-chassis-rbnx
     branch: main
     config:
       port_name: can_ranger

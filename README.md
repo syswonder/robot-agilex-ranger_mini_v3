@@ -2,7 +2,7 @@
 
 Robonix deploy manifest for the AgileX Ranger Mini robot at SysWonder lab.
 
-Hardware: Jetson Orin (aarch64, Tegra-special CUDA stack), AgileX Ranger Mini v2 chassis (CAN bus), Livox MID-360 3D LiDAR + integrated 6-axis IMU (Ethernet), Intel RealSense D435i RGBD camera (USB 3.0, with internal IMU).
+Hardware: Jetson Orin (aarch64, Tegra-special CUDA stack), AgileX Ranger Mini v3 chassis (CAN bus), Livox MID-360 3D LiDAR + integrated 6-axis IMU (Ethernet), Intel RealSense D435i RGBD camera (USB 3.0, with internal IMU).
 
 ## Packages
 
@@ -13,7 +13,7 @@ All package URLs in `robonix_manifest.yaml` resolve from this enkerewpo GitHub o
 | `mid360_lidar_rbnx`      | syswonder/primitive-livox-mid360-lidar-rbnx                      | primitive/lidar/*     |
 | `mid360_imu_rbnx`        | syswonder/primitive-livox-mid360-imu-rbnx                        | primitive/imu/*       |
 | `realsense_camera_rbnx`  | syswonder/primitive-intel-realsense_d435i-camera-rbnx                  | primitive/camera/*    |
-| `ranger_chassis_rbnx`    | syswonder/primitive-agilex-rangerminiv3-chassis-rbnx                    | primitive/chassis/*   |
+| `ranger_chassis_rbnx`    | syswonder/primitive-agilex-ranger_mini_v3-chassis-rbnx                  | primitive/chassis/*   |
 | `mapping_rbnx`           | syswonder/service-map-rbnx                           | service/map/*         |
 
 ```bash
