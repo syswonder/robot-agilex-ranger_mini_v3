@@ -6,15 +6,15 @@ Hardware: Jetson Orin (aarch64, Tegra-special CUDA stack), AgileX Ranger Mini v3
 
 ## Packages
 
-All package URLs in `robonix_manifest.yaml` resolve from this enkerewpo GitHub org:
+All package URLs in `robonix_manifest.yaml` resolve from the SysWonder GitHub organization:
 
-| Package                  | Repo                                             | Owns                  |
-| ------------------------ | ------------------------------------------------ | --------------------- |
-| `mid360_lidar_rbnx`      | syswonder/primitive-livox-mid360-lidar-rbnx                      | primitive/lidar/*     |
-| `mid360_imu_rbnx`        | syswonder/primitive-livox-mid360-imu-rbnx                        | primitive/imu/*       |
-| `realsense_camera_rbnx`  | syswonder/primitive-intel-realsense_d435i-camera-rbnx                  | primitive/camera/*    |
-| `ranger_chassis_rbnx`    | syswonder/primitive-agilex-ranger_mini_v3-chassis-rbnx                  | primitive/chassis/*   |
-| `mapping_rbnx`           | syswonder/service-map-rbnx                           | service/map/*         |
+| Package | Repo | Owns |
+| --- | --- | --- |
+| `mid360_lidar_rbnx` | syswonder/primitive-livox-mid360-lidar-rbnx | primitive/lidar/* |
+| `mid360_imu_rbnx` | syswonder/primitive-livox-mid360-imu-rbnx | primitive/imu/* |
+| `realsense_camera_rbnx` | syswonder/primitive-intel-realsense_d435i-camera-rbnx | primitive/camera/* |
+| `ranger_chassis_rbnx` | syswonder/primitive-agilex-ranger_mini_v3-chassis-rbnx | primitive/chassis/* |
+| `mapping_rbnx` | syswonder/service-map-rbnx | service/map/* |
 
 ```bash
 # on the Jetson, in this directory:
