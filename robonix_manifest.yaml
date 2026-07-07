@@ -1,6 +1,22 @@
 manifestVersion: 1
 name: robonix-ranger-mini-deploy
 
+catalog:
+  name: robonix.robot.agilex.ranger_mini_v3
+  version: 0.1.0
+  description: Robonix deploy manifest for the AgileX Ranger Mini v3 robot.
+  tags:
+    - robot
+    - deploy
+    - agilex
+    - ranger_mini_v3
+    - lidar
+    - camera
+    - navigation
+    - mapping
+  maintainers:
+    - wheatfox <wheatfox17@icloud.com>
+
 # Robonix deploy manifest for the AgileX Ranger Mini + Livox MID-360
 # + Intel RealSense D435i stack, runs on the Jetson Orin (syswonder
 # desktop, ssh alias `robot`). On the Jetson, the latest robonix
