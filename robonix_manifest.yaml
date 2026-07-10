@@ -31,8 +31,6 @@ env:
   ROBONIX_NAV2_FORCE: native
   ROBONIX_NAV2_PLATFORM: jetson_orin
 
-  # Spatial and semantic state use the same map identity.
-  SCENE_MAP_ID: ranger_lab
   MAPPING_MAPS_DIR: ${HOME}/.robonix/maps
   SCENE_OBJECT_MEMORY_DB: ${HOME}/.robonix/scene/objects.db
   SCENE_GRAPH_CACHE_DIR: ${HOME}/.robonix/scene/graph
@@ -178,7 +176,6 @@ service:
       odom_frame: odom
       map_frame: map
       use_sim_time: false
-      map_id: ranger_lab
       map_mode: mapping
       reset_map: false
       sensors:
