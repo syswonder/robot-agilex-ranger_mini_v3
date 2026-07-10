@@ -1,0 +1,135 @@
+# Soma body description for the Ranger Mini deploy.
+#
+# Loaded by `robonix-soma` (PR91) and exposed verbatim through
+# `robonix/system/soma/get_yaml`. Future srvs (description / footprint /
+# sensor_extrinsics — see PR91 capabilities/system/soma/*.v1.toml)
+# will parse the structured fields below.
+#
+# v0.1 stage: PR91's loader only checks `robot.id` and `urdf.path`.
+# Everything else is forward-looking — preserved verbatim in get_yaml
+# responses so consumers can start mining it the moment downstream
+# srvs ship.
+#
+# References:
+#   - schema: docs/Robonix 开发文档.md §五 Soma
+#   - integration plan: docs/ranger_mini_soma_integration_plan.md
+#   - hardware: see ./README.md
+
+urdf:
+  # Path is resolved relative to this YAML file's directory (PR91
+  # store.rs::RobotRecord::load_from_deployment).
+  path: ./urdf/ranger_mini.urdf
+  root_link: base_link
+  model_name: ranger_mini_v2
+
+robot:
+  id: ranger_mini_01
+  display_name: "AgileX Ranger Mini v2 + MID-360 + RealSense D435i"
+  family: mobile_base
+  root_part: base
+  dimensions:
+    length_m: 0.74
+    width_m:  0.50
+    height_m: 0.30
+  mass_kg: 63.0
+  passable_door_width_m: 0.65
+
+# Component tree. Stage A: PR91 doesn't parse this — but writing it now
+# means stage B/C light up automatically when downstream srvs ship.
+#
+# Naming convention:
+#   - `id` is the semantic name (e.g. `lidar_top`), NOT the URDF link
+#     name. Multiple `id`s may map to the same URDF link (e.g. an IMU
+#     sharing `livox_frame` with the lidar).
+#   - `link` references the URDF link name exactly (no quoting / casing
+#     drift).
+#   - `provided_by[].provider_id` matches an entry in
+#     robonix_manifest.yaml's primitive/service/skill list — that's the
+#     contract pilot needs to disambiguate "which arm should grasp".
+tree:
+  id: base
+  part_type: mobility_base
+  human_label: "Ranger Mini v2 four-wheel skid-steer chassis"
+  link: base_link
+  mobility:
+    locomotion: four_wheel_skid_steer
+    base_link: base_link
+    drive_joints: [fl_joint, fr_joint, bl_joint, br_joint]
+    footprint:
+      shape: rectangle
+      length_m: 0.74
+      width_m:  0.50
+    max_linear_mps: 1.5
+    max_angular_rps: 2.0
+  provided_by:
+    - contract: robonix/primitive/chassis/move
+      provider_id: ranger_chassis
+    - contract: robonix/primitive/chassis/odom
+      provider_id: ranger_chassis
+  children:
+    - id: lidar_top
+      part_type: sensor
+      human_label: "Livox MID-360 360° 3D LiDAR, mast-mounted"
+      link: livox_frame
+      sensor:
+        modality: lidar_3d
+        placement: mast_top
+        horizontal_fov_deg: 360
+        vertical_fov_deg: 59
+        range_m: 40
+      provided_by:
+        - contract: robonix/primitive/lidar/lidar3d
+          provider_id: mid360_lidar
+
+    - id: imu_top
+      part_type: sensor
+      human_label: "MID-360 internal 6-axis IMU (shares livox_frame)"
+      link: livox_frame
+      sensor:
+        modality: imu
+        placement: mast_top
+      provided_by:
+        - contract: robonix/primitive/imu/imu
+          provider_id: mid360_imu
+
+    - id: front_rgbd
+      part_type: sensor
+      human_label: "Intel RealSense D435i, front-facing RGBD"
+      link: camera_435i_link
+      sensor:
+        modality: rgbd
+        placement: chassis_front
+        fov_deg: 87
+        resolution: [640, 480]
+        framerate_hz: 30
+        depth_range_m: [0.3, 3.0]
+      provided_by:
+        - contract: robonix/primitive/camera/rgb
+          provider_id: realsense_camera
+        - contract: robonix/primitive/camera/depth
+          provider_id: realsense_camera
+
+description:
+  summary: >-
+    Four-wheel skid-steer indoor robot. Carries a top-mast 3D LiDAR
+    (Livox MID-360) and a front-facing RealSense D435i RGBD camera.
+    No manipulator. Mapping uses rtabmap fusing lidar3d + rgbd. Nav
+    uses nav2 with the lidar3d projected to a 2D costmap.
+  can_do:
+    - "Drive on flat indoor floors and gentle ramps."
+    - "Build a 2D occupancy grid + 3D semantic map via rtabmap."
+    - "Navigate to a goal pose using nav2 (action navigate_to_pose)."
+    - "Provide front RGB + aligned depth observations from the D435i."
+    - "Provide 360° 3D point cloud + IMU from the MID-360."
+    - "Run frontier exploration (skill: explore) when commanded."
+  cannot_do:
+    - "No manipulation — there is no arm or gripper attached."
+    - "No rear-facing camera; the D435i is front-only."
+    - "Cannot climb stairs or curbs higher than 5 cm."
+    - "No outdoor GNSS / RTK; localization fails outside mapped area."
+    - "No teleop joystick wired in this deploy; commands come via pilot."
+  notes:
+    - "Stop the base before precise sensing — RealSense rolling-shutter blurs above ~0.5 m/s linear motion."
+    - "MID-360 IMU is canonical for primitive/imu/imu; the D435i IMU is intentionally disabled (enable_imu=false in robonix_manifest.yaml) to avoid duplicate primitive providers."
+    - "Mount offsets in the URDF are CAD placeholders. Re-measure before relying on TF for precise tasks (e.g. when an arm gets added)."
+    - "While ranger_description (the static_tf stand-in) is still in the manifest, base_link → {livox_frame, camera_435i_link} comes from static_transform_publisher and MUST agree with this URDF byte-for-byte."

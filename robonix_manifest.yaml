@@ -1,49 +1,54 @@
 manifestVersion: 1
-name: robonix-ranger-mini-deploy
+name: robonix-ranger-mini-v3-deploy
 
 catalog:
   name: robonix.robot.agilex.ranger_mini_v3
-  version: 0.1.0
-  description: Robonix deploy manifest for the AgileX Ranger Mini v3 robot.
-  tags:
-    - robot
-    - deploy
-    - agilex
-    - ranger_mini_v3
-    - lidar
-    - camera
-    - navigation
-    - mapping
+  version: 0.2.0
+  description: Robonix deployment for the AgileX Ranger Mini v3 robot.
+  tags: [robot, deploy, agilex, ranger_mini_v3, jetson, lidar, rgbd, scene, mapping, navigation]
   maintainers:
     - wheatfox <wheatfox17@icloud.com>
 
-# Robonix deploy manifest for the AgileX Ranger Mini + Livox MID-360
-# + Intel RealSense D435i stack, runs on the Jetson Orin (syswonder
-# desktop, ssh alias `robot`). On the Jetson, the latest robonix
-# source tree lives at /home/syswonder/wheatfox/robonix; rbnx is
-# `cargo run -p robonix-cli --release` or whatever wrapper the user
-# has set up.
-#
-# Each `url:` package is a separate GitHub repo under SysWonder. `rbnx
-# build` clones them into rbnx-boot/cache/<name>/ and runs each
-# package's scripts/build.sh; `rbnx boot` then spawns each one and
-# calls Driver(CMD_INIT, config_json) on its */driver gRPC interface.
-#
-# The manifest is an UNORDERED list. Boot ordering between packages is
-# handled implicitly: a package whose dep isn't ready returns
-# Driver_Response(state="deferred"); rbnx retries deferred packages
-# in a loop until the system reaches steady state. No explicit dep
-# graph in the manifest.
-
 env:
-  # Override on the launching shell if needed:
-  #   VLM_BASE_URL  for cloud-side reasoning (pilot)
-  #   VLM_API_KEY
-  #   VLM_MODEL
+  # Single-host ROS 2 transport. scripts/start.sh owns the local rmw_zenohd
+  # process; all native packages inherit the same RMW and router endpoint.
+  ROS_DOMAIN_ID: "0"
+  RMW_IMPLEMENTATION: rmw_zenoh_cpp
+  ROBONIX_RMW_IMPLEMENTATION: rmw_zenoh_cpp
+  ROBONIX_ZENOH_ROUTER: tcp/127.0.0.1:7447
+  ROBONIX_ZENOH_MODE: client
+
+  # Jetson packages run against host ROS 2 and the JetPack CUDA Python stack.
+  RBNX_BUILD_TARGET: jetson-native
+  ROBONIX_SCENE_FORCE: native
+  ROBONIX_SCENE_PLATFORM: jetson_orin
+  ROBONIX_SCENE_ROS_DISTRO: humble
+  SCENE_NATIVE_PYTHON: python3
+  SCENE_WEB_PORT: "50107"
+  ROBONIX_MAPPING_FORCE: native
+  ROBONIX_MAPPING_PLATFORM: jetson_orin
+  MAPPING_WEBUI_PORT: "8091"
+  ROBONIX_NAV2_FORCE: native
+  ROBONIX_NAV2_PLATFORM: jetson_orin
+
+  # Spatial and semantic state use the same map identity.
+  SCENE_MAP_ID: ranger_lab
+  MAPPING_MAPS_DIR: ${HOME}/.robonix/maps
+  SCENE_OBJECT_MEMORY_DB: ${HOME}/.robonix/scene/objects.db
+  SCENE_GRAPH_CACHE_DIR: ${HOME}/.robonix/scene/graph
+
+  # Build-time mirrors only. All model weights are prepared by build scripts;
+  # start must not download models.
+  HF_ENDPOINT: https://hf-mirror.com
+  PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+
+  # Cloud speech requires no local ASR/TTS models or GPU runtime. SecretId and
+  # SecretKey are supplied only through the operator environment.
+  SPEECH_BACKEND: tencent
 
 system:
   atlas:
-    listen: 127.0.0.1:50051
+    listen: 0.0.0.0:50051
     log: info
   executor:
     listen: 127.0.0.1:50061
@@ -56,69 +61,57 @@ system:
       api_key: ${VLM_API_KEY}
       model: ${VLM_MODEL}
       api_format: openai
-
-  # Soma (URDF + robot_state_publisher) is on the v0.2 roadmap, not
-  # yet implemented — see Robonix dev guide §3.6 / 附录 B. For ranger
-  # bring-up, run `static_transform_publisher` from a side launch (see
-  # README.md sketch) until soma ships.
-  #
-  # Voice / speech (ASR + TTS + audio_driver) is off for ranger first
-  # bring-up — chat is text-only, goes through liaison. Drop a
-  # `speech:` block + audio primitives into this manifest later when
-  # mics are wired.
-
   liaison:
-    listen: 127.0.0.1:50081
+    listen: 0.0.0.0:50081
     log: info
-  nexus:
+  soma:
+    listen: 127.0.0.1:50091
     log: info
-  memory:
-    backend: sqlite
-    log: info
+    provider_id: soma
+    robot_yaml: ${ROBONIX_DEPLOY_DIR}/soma.yaml
   scene:
     log: info
 
 primitive:
-  # ── MID-360 lidar ───────────────────────────────────────────────────
-  # Owns primitive/lidar/*. Spawns livox_ros_driver2 in Driver.Init.
-  # Also makes /livox/imu live on the bus (consumed by mid360_imu below).
+  # Publishes the Soma-owned URDF as /robot_description and the standard TF
+  # tree. This has no body config of its own; Soma is the only URDF source.
+  - name: robot_description
+    url: https://github.com/syswonder/primitive-robot-description-rbnx
+    branch: main
+    manifest: package_manifest.native.yaml
+
+  # Keep providers before consumers: the lidar process also publishes the
+  # MID-360 IMU stream consumed by the next package.
   - name: mid360_lidar
     url: https://github.com/syswonder/primitive-livox-mid360-lidar-rbnx
     branch: main
     config:
       lidar_topic: /scanner/cloud
+      imu_topic: /livox/imu
       lidar_ip: 192.168.1.161
-      # host_ip: omit → atlas_bridge auto-resolves via `ip route get`.
-      # Override only if the Jetson NIC's static config drifts.
-      xfer_format: 2 # PointCloud2 XYZIT (rtabmap-friendly)
-      sentinel_timeout_s: 30.0
+      host_ip: 192.168.1.50
+      xfer_format: 0
+      sentinel_timeout_s: 45.0
 
-  # ── MID-360 IMU (topic shim, no ROS spawn) ──────────────────────────
-  # Owns primitive/imu/*. Subscribes to /livox/imu (which mid360_lidar's
-  # livox launch publishes) and atlas-routes it. If mid360_lidar isn't
-  # initialized yet, this returns deferred and rbnx retries.
   - name: mid360_imu
     url: https://github.com/syswonder/primitive-livox-mid360-imu-rbnx
     branch: main
     config:
       imu_topic: /livox/imu
-      defer_probe_s: 2.0
+      sentinel_timeout_s: 45.0
 
-  # ── RealSense D435i (RGBD) ─────────────────────────────────────────
-  # Owns primitive/camera/*. Spawns realsense2_camera's rs_launch.py.
   - name: realsense_camera
     url: https://github.com/syswonder/primitive-intel-realsense_d435i-camera-rbnx
     branch: main
     config:
       camera_name: camera_435i
       rgb_profile: 640x480x30
-      depth_profile: 848x480x30
+      depth_profile: 640x480x15
       align_depth: true
-      enable_imu: true # published, NOT atlas-routed (mid360 IMU is canonical)
+      enable_imu: false
       enable_sync: true
-      sentinel_timeout_s: 30.0
+      sentinel_timeout_s: 45.0
 
-  # ── Ranger Mini chassis ─────────────────────────────────────────────
   - name: ranger_chassis
     url: https://github.com/syswonder/primitive-agilex-ranger_mini_v3-chassis-rbnx
     branch: main
@@ -126,46 +119,89 @@ primitive:
       port_name: can_ranger
       robot_model: ranger_mini_v2
       odom_topic_name: odom
-      publish_odom_tf: true # soma not yet shipped — chassis owns /tf for now
+      odom_frame: odom
+      base_frame: base_link
+      publish_odom_tf: true
       sentinel_timeout_s: 30.0
 
+  # The robot's USB audio device. This is the default mic/speaker provider for
+  # onboard speech; client-side audio is a separate, session-bound path.
+  - name: audio_driver
+    path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_driver
+    config:
+      mic_device: plughw:0,0
+      mic_sample_rate: 16000
+      speaker_device: plughw:0,0
+      speaker_sample_rate: 16000
+
+  # Client-side audio over the existing WebSocket bridge. It is deliberately a
+  # separate provider: speech/speak remains pinned to audio_driver unless a
+  # caller explicitly targets audio_client_bridge.
+  - name: audio_client_bridge
+    path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_client_bridge
+    config:
+      host: ${AUDIO_CLIENT_SERVER_HOST}
+      port: ${AUDIO_CLIENT_SERVER_PORT}
+
 service:
-  # ── SLAM (rtabmap) ──────────────────────────────────────────────────
-  # Discovers lidar3d + rgb + depth + imu via atlas at Init time and
-  # configures rtabmap to fuse them. Outputs service/map/{occupancy_grid,
-  # pointcloud, pose, odom} on atlas — algo-agnostic for consumers.
+  - name: memory
+    path: ${ROBONIX_SOURCE_PATH}/services/memsearch
+    config:
+      backend: sqlite
+
+  - name: speech
+    path: ${ROBONIX_SOURCE_PATH}/services/speech
+    config:
+      speech_backend: tencent
+      disable_whisper: true
+      default_speaker_provider_id: audio_driver
+      tencent_asr_appid: "1258720755"
+      tencent_asr_engine: 16k_zh_en
+      tencent_tts_voice_type: 502003
+      tencent_tts_region: ap-guangzhou
+      tencent_tts_model_type: 1
+      tencent_tts_sample_rate: 16000
+      tencent_tts_codec: pcm
+
+  - name: voiceprint
+    path: ${ROBONIX_SOURCE_PATH}/services/voiceprint
+    config: {}
+
   - name: mapping
     url: https://github.com/syswonder/service-map-rbnx
     branch: main
+    manifest: package_manifest.jetson-native.yaml
     config:
       algo: rtabmap
       platform: jetson_orin
+      base_frame: base_link
+      odom_frame: odom
+      map_frame: map
+      use_sim_time: false
+      map_id: ranger_lab
+      map_mode: mapping
+      reset_map: false
       sensors:
         lidar2d: false
-        lidar3d: true # MID-360 PointCloud2
-        rgb: true # RealSense visual loop closure
-        rgbd: true # RealSense depth → 3D fusion
-        # imu: rtabmap launch doesn't wire IMU yet (the comment in
-        # launch/rtabmap_2d.launch.py promises it but the code isn't
-        # there). Leave OFF for the first bring-up — the MID-360's
-        # lidar alone is usually enough for graph SLAM. Flip to true
-        # once mapping_rbnx grows imu_topic + subscribe_imu wiring.
+        lidar3d: true
+        rgb: true
+        depth: true
         imu: false
-        # odom: chassis is powered off this run; rtabmap derives
-        # odometry internally from lidar (icp_odometry) / RGBD.
-        # Flip to true once ranger_chassis_rbnx is enabled.
-        odom: false
-  # ── Navigation ───────────────────────────────────────────────
+        odom: true
+
   - name: nav2
     url: https://github.com/syswonder/service-navigation-rbnx
     branch: main
-    config: {}
+    manifest: package_manifest.jetson-native.yaml
+    config:
+      params_profile: ranger_mini_v3
+      use_sim_time: false
+      action_wait_s: 90.0
 
 skill:
   - name: explore
     url: https://github.com/syswonder/skill-explore-rbnx
     branch: main
     config:
-      # example place holders
       explore_mode: frontier
       timeout_s: 600

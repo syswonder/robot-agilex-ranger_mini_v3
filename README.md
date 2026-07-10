@@ -1,78 +1,89 @@
-# ranger_mini_deploy
+# AgileX Ranger Mini v3
 
-Robonix deploy manifest for the AgileX Ranger Mini robot at SysWonder lab.
+Robonix deployment for the SysWonder Ranger Mini v3: Jetson Orin, Livox
+MID-360, Intel RealSense D435i, RTAB-Map, Scene, Nav2, and Explore.
 
-Hardware: Jetson Orin (aarch64, Tegra-special CUDA stack), AgileX Ranger Mini v3 chassis (CAN bus), Livox MID-360 3D LiDAR + integrated 6-axis IMU (Ethernet), Intel RealSense D435i RGBD camera (USB 3.0, with internal IMU).
+The deployment uses native ROS 2 packages on Jetson. Zenoh RMW is the default;
+`start.sh` starts a local `rmw_zenohd` for the lifetime of the boot.
+Scene, Mapping, and Nav2 are explicitly selected for their Jetson-native paths.
 
-## Packages
+## Prepare
 
-All package URLs in `robonix_manifest.yaml` resolve from the SysWonder GitHub organization:
-
-| Package | Repo | Owns |
-| --- | --- | --- |
-| `mid360_lidar_rbnx` | syswonder/primitive-livox-mid360-lidar-rbnx | primitive/lidar/* |
-| `mid360_imu_rbnx` | syswonder/primitive-livox-mid360-imu-rbnx | primitive/imu/* |
-| `realsense_camera_rbnx` | syswonder/primitive-intel-realsense_d435i-camera-rbnx | primitive/camera/* |
-| `ranger_chassis_rbnx` | syswonder/primitive-agilex-ranger_mini_v3-chassis-rbnx | primitive/chassis/* |
-| `mapping_rbnx` | syswonder/service-map-rbnx | service/map/* |
+Install the Robonix `dev` toolchain from its source clone, then install the
+ROS dependencies once:
 
 ```bash
-# on the Jetson, in this directory:
-rbnx build .         # clones each url: package and runs its build.sh
-rbnx boot  .         # spawns each one and runs Driver(CMD_INIT, config)
+cd ~/wheatfox/robonix
+git switch dev
+git pull --ff-only origin dev
+make install
+
+sudo apt install ros-humble-rmw-zenoh-cpp \
+  ros-humble-rtabmap-ros ros-humble-navigation2 ros-humble-nav2-bringup
 ```
 
-`rbnx build` writes everything to `rbnx-build/cache/<name>/` so the original working dir on the Jetson is never touched.
-
-## URDF — required, not shipped
-
-Soma needs a Ranger Mini URDF (`urdf_path` in the system.soma block). The URDF must include `base_link` (chassis frame; convention: ground projection of the geometric centre, X forward, Z up), `livox_frame` mount transform from `base_link`, and `camera_link` + `camera_color_optical_frame` mount transforms.
-
-Until a calibrated URDF is in hand, an interim path is to launch `static_transform_publisher` for each frame manually. Sketch (drop in a side-launch, replace x y z and roll pitch yaw with your measured mount values):
-
-```xml
-<launch>
-  <node pkg="tf2_ros" exec="static_transform_publisher" name="tf_lidar"
-        args="0.20 0 0.40  0 0 0  base_link livox_frame"/>
-  <node pkg="tf2_ros" exec="static_transform_publisher" name="tf_camera"
-        args="0.30 0 0.35  0 0 0  base_link camera_link"/>
-</launch>
-```
-
-Then leave `system.soma` commented out in the manifest until the URDF is ready, and run that side-launch in another shell.
-
-## Verifying the bring-up
-
-After `rbnx boot`:
+Create a private environment file; never commit credentials:
 
 ```bash
-ros2 topic hz /scanner/cloud   # ~10 Hz lidar PointCloud2
-ros2 topic hz /livox/imu       # ~200 Hz sensor_msgs/Imu
-ros2 topic hz /camera_435i/color/image_raw                    # ~30 Hz
-ros2 topic hz /camera_435i/aligned_depth_to_color/image_raw   # ~30 Hz
-ros2 topic hz /map             # 1 Hz-ish OccupancyGrid (from rtabmap)
-ros2 topic echo /robonix/map/pose --once
-rbnx caps                      # all the contracts above should be listed
+cp .env.example .env
+$EDITOR .env
 ```
 
-Open RViz and load the rtabmap visualization config to see the map build up.
+`start.sh` loads this ignored file automatically and exports it to every
+Robonix child process. Keep VLM and Tencent SecretId/SecretKey here; keep
+non-secret backend, AppID, engine, voice, and region settings in
+`robonix_manifest.yaml`.
 
-## Defer / boot sequencing
+## Build and boot
 
-The deploy manifest is an unordered list. Boot ordering happens at runtime via the defer protocol: a package whose dep isn't ready returns `Driver_Response(state="deferred")` and `rbnx boot` retries it periodically until the system reaches steady state. There's no explicit dep graph in the manifest — each package only declares what it needs at the moment its Init runs.
-
-Concretely, the cascade for this stack:
-
-```
-mid360_lidar.Init    →  spawns livox driver, declares lidar3d
-                        (also makes /livox/imu live on the bus)
-mid360_imu.Init      →  defers if /livox/imu silent; succeeds on retry
-                        once mid360_lidar's launch is publishing
-realsense_camera.Init→  spawns realsense, declares rgb + depth
-mapping.Init         →  queries atlas for lidar3d, rgb, depth, imu;
-                        defers any not yet present; succeeds when all are
+```bash
+bash build.sh
+bash start.sh
 ```
 
-## License
+The wrappers set `ROBONIX_DEPLOY_DIR`, source ROS Humble, select the native
+Jetson build, and keep the Zenoh router lifecycle tied to `rbnx boot`.
 
-Manifest + this README: MulanPSL-2.0. Each `url:` package retains its own license.
+Operator pages:
+
+- Scene: `http://<robot-host>:50107/`
+- Mapping: `http://<robot-host>:8091/`
+- Atlas for Robonix Client: `<robot-host>:50051`
+- Liaison for Robonix Client: `<robot-host>:50081`
+
+## RViz
+
+The deploy keeps the complete v0.1 RViz configuration and an updated mapping
+variant. The updated file preserves the original map, costmap, scan, path,
+goal, TF, particle-cloud, and footprint displays, and adds the Soma-backed
+RobotModel plus the live MID-360 `/scanner/cloud` display.
+
+```bash
+source /opt/ros/humble/setup.bash
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+rviz2 -d rviz/ranger_mapping.rviz
+```
+
+The unchanged historical configuration is `rviz/ranger_v0.1.rviz`.
+
+## Safety and bring-up order
+
+Keep the chassis powered off while validating the passive stack. The chassis,
+Nav2, and Explore entries remain commented in `robonix_manifest.yaml`; LiDAR,
+IMU, camera, Robot Description, Scene, and Mapping can be inspected without exposing
+motion capabilities.
+
+After the chassis is powered on:
+
+1. Verify `can_ranger` is UP and odometry is publishing.
+2. Send zero Twist and confirm the watchdog holds the base stopped.
+3. Use a low-speed, short-duration command in a clear area.
+4. Verify Mapping pose and Nav2 costmaps before sending a nearby goal.
+5. Only then test Explore.
+
+## Robot description
+
+`soma.yaml` and `urdf/ranger_mini.urdf` are served by Soma. The description
+contains the body footprint and sensor tree used by Pilot and other consumers.
+Mount transforms remain calibration-sensitive; update the URDF after physical
+measurement rather than compensating in Scene or Mapping.
