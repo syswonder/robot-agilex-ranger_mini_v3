@@ -9,4 +9,5 @@ set +u
 source /opt/ros/humble/setup.bash
 set -u
 
-exec rbnx build -f "$DEPLOY_DIR/robonix_manifest.yaml" "$@"
+MANIFEST="${ROBONIX_MANIFEST:-$DEPLOY_DIR/robonix_manifest.yaml}"
+exec rbnx build -f "$MANIFEST" "$@"

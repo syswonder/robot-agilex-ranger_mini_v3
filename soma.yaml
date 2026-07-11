@@ -24,8 +24,8 @@ urdf:
 
 robot:
   id: ranger_mini_01
-  display_name: "AgileX Ranger Mini v2 + MID-360 + RealSense D435i"
-  family: mobile_base
+  display_name: "AgileX Ranger Mini v3 + Piper arm + MID-360 + RealSense D435i + Orbbec wrist camera"
+  family: mobile_manipulator
   root_part: base
   dimensions:
     length_m: 0.74
@@ -109,21 +109,80 @@ tree:
         - contract: robonix/primitive/camera/depth
           provider_id: realsense_camera
 
+    - id: arm
+      part_type: manipulator
+      human_label: "AgileX Piper 6-DoF arm mounted on the Ranger Mini"
+      # The active URDF remains ranger_mini.urdf; the Piper chain is
+      # controlled by piper_ctl and solved by roboarm_ik with its own
+      # Piper URDF. This link marks the chassis attachment point for
+      # semantic context only.
+      link: base_link
+      manipulator:
+        dof: 6
+        base_link: arm/base_link
+        end_effector_link: link6
+        joints: [joint1, joint2, joint3, joint4, joint5, joint6]
+        reach_m: 0.75
+        max_payload_kg: 1.5
+      provided_by:
+        - contract: robonix/primitive/arm/joint_states
+          provider_id: piper_ctl
+        - contract: robonix/primitive/arm/arm_status
+          provider_id: piper_ctl
+        - contract: robonix/primitive/arm/end_pose
+          provider_id: piper_ctl
+        - contract: robonix/primitive/arm/pos_cmd
+          provider_id: piper_ctl
+      children:
+        - id: gripper
+          part_type: end_effector
+          human_label: "Piper factory two-finger parallel gripper"
+          link: link6
+          end_effector:
+            modality: parallel_jaw
+            max_width_m: 0.08
+            max_payload_kg: 1.5
+          provided_by:
+            - contract: robonix/primitive/arm/pos_cmd
+              provider_id: piper_ctl
+
+        - id: wrist_camera
+          part_type: sensor
+          human_label: "Orbbec Dabai DCW wrist RGBD camera for vertical grasp"
+          link: link6
+          sensor:
+            modality: rgbd
+            placement: end_effector_wrist
+            resolution: [1280, 720]
+            framerate_hz: 10
+            depth_range_m: [0.2, 3.0]
+          provided_by:
+            - contract: robonix/primitive/camera/rgb
+              provider_id: orbbec_camera
+            - contract: robonix/primitive/camera/depth
+              provider_id: orbbec_camera
+            - contract: robonix/primitive/camera/camera_info
+              provider_id: orbbec_camera
+
 description:
   summary: >-
-    Four-wheel skid-steer indoor robot. Carries a top-mast 3D LiDAR
-    (Livox MID-360) and a front-facing RealSense D435i RGBD camera.
-    No manipulator. Mapping uses rtabmap fusing lidar3d + rgbd. Nav
-    uses nav2 with the lidar3d projected to a 2D costmap.
+    Four-wheel skid-steer indoor mobile manipulator. Carries a top-mast
+    3D LiDAR (Livox MID-360), a front-facing RealSense D435i RGBD camera,
+    and a Piper 6-DoF arm with an Orbbec wrist camera. Mapping and scene
+    use the RealSense; the pick pipeline uses the Orbbec for VLM detection
+    and a 2D homography for fixed-height vertical grasps.
   can_do:
     - "Drive on flat indoor floors and gentle ramps."
     - "Build a 2D occupancy grid + 3D semantic map via rtabmap."
     - "Navigate to a goal pose using nav2 (action navigate_to_pose)."
     - "Provide front RGB + aligned depth observations from the D435i."
     - "Provide 360° 3D point cloud + IMU from the MID-360."
+    - "Capture wrist RGB from the Orbbec Dabai DCW for manipulation."
+    - "Pick named table-top objects with the Piper arm using a fixed vertical top-down grasp pipeline."
     - "Run frontier exploration (skill: explore) when commanded."
   cannot_do:
-    - "No manipulation — there is no arm or gripper attached."
+    - "Grasp arbitrary 6-DoF poses; the current pick pipeline is vertical top-down only."
+    - "Infer grasp height from depth; grasp z is the configured default_desktop_height."
     - "No rear-facing camera; the D435i is front-only."
     - "Cannot climb stairs or curbs higher than 5 cm."
     - "No outdoor GNSS / RTK; localization fails outside mapped area."
@@ -131,5 +190,7 @@ description:
   notes:
     - "Stop the base before precise sensing — RealSense rolling-shutter blurs above ~0.5 m/s linear motion."
     - "MID-360 IMU is canonical for primitive/imu/imu; the D435i IMU is intentionally disabled (enable_imu=false in robonix_manifest.yaml) to avoid duplicate primitive providers."
-    - "Mount offsets in the URDF are CAD placeholders. Re-measure before relying on TF for precise tasks (e.g. when an arm gets added)."
-    - "While ranger_description (the static_tf stand-in) is still in the manifest, base_link → {livox_frame, camera_435i_link} comes from static_transform_publisher and MUST agree with this URDF byte-for-byte."
+    - "The active Soma URDF is still ranger_mini.urdf. Piper is not published into the global TF tree in this minimal merge."
+    - "mapping and scene pin camera provider selection to realsense_camera; llm_detect pins camera provider selection to orbbec_camera."
+    - "Piper CAN must already be up as can_piper before boot because piper_ctl.auto_can_setup is false."
+    - "grasp_pose loads rbnx-boot/hand-eye-data/2d_homography.npy and uses default_desktop_height as the final grasp z in arm/base_link."
