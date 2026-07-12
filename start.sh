@@ -24,13 +24,26 @@ source /opt/ros/humble/setup.bash
 set -u
 
 router_pid=""
+MANIFEST="${ROBONIX_MANIFEST:-$DEPLOY_DIR/robonix_manifest.yaml}"
+stack_started=0
 cleanup() {
+  local status=$?
+  trap - EXIT INT TERM
+  # `rbnx boot` records every process group in state.json.  Always use that
+  # record on shell exit so Ctrl-C cannot leave drivers or system services
+  # orphaned under init.
+  if [[ "$stack_started" == "1" && -f "$DEPLOY_DIR/rbnx-boot/state.json" ]]; then
+    rbnx shutdown -f "$MANIFEST" || true
+  fi
   if [[ -n "$router_pid" ]]; then
     kill -TERM "$router_pid" 2>/dev/null || true
     wait "$router_pid" 2>/dev/null || true
   fi
+  exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [[ "$ROBONIX_RMW_IMPLEMENTATION" == "rmw_zenoh_cpp" ]]; then
   router_bin="/opt/ros/humble/lib/rmw_zenoh_cpp/rmw_zenohd"
@@ -71,4 +84,5 @@ PY
   fi
 fi
 
-rbnx boot -f "$DEPLOY_DIR/robonix_manifest.yaml" "$@"
+stack_started=1
+rbnx boot --no-update-check -f "$MANIFEST" "$@"
