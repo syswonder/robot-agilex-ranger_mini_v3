@@ -34,6 +34,7 @@ env:
   MAPPING_MAPS_DIR: ${HOME}/.robonix/maps
   SCENE_OBJECT_MEMORY_DB: ${HOME}/.robonix/scene/objects.db
   SCENE_GRAPH_CACHE_DIR: ${HOME}/.robonix/scene/graph
+  SCENE_ANNOTATIONS_DIR: ${HOME}/.robonix/scene/annotations
 
   # Build-time mirrors only. All model weights are prepared by build scripts;
   # start must not download models.
@@ -69,6 +70,7 @@ system:
     robot_yaml: ${ROBONIX_DEPLOY_DIR}/soma.yaml
   scene:
     log: info
+    camera_provider_id: realsense_camera
 
 primitive:
   # Publishes the Soma-owned URDF as /robot_description and the standard TF
@@ -104,15 +106,36 @@ primitive:
     config:
       camera_name: camera_435i
       rgb_profile: 640x480x30
-      depth_profile: 640x480x15
+      depth_profile: 640x480x30
       align_depth: true
+      spatial_filter: true
+      temporal_filter: true
+      hole_filling_filter: false
       enable_imu: false
       enable_sync: true
       sentinel_timeout_s: 45.0
 
+  # Wrist-mounted Orbbec Dabai DCW used only by the Piper grasp pipeline.
+  # Mapping and scene are pinned to realsense_camera in their configs below.
+  - name: orbbec_camera
+    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/OrbbecSDK_rbnx
+    config:
+      camera_name: camera
+      enable_depth: false
+      depth_registration: false
+      enable_d2c_viewer: false
+      color_width: 1280
+      color_height: 720
+      color_fps: 10
+      color_format: YUYV
+      depth_width: 640
+      depth_height: 400
+      depth_fps: 10
+      sentinel_timeout_s: 30.0
+
   - name: ranger_chassis
     url: https://github.com/syswonder/primitive-agilex-ranger_mini_v3-chassis-rbnx
-    branch: main
+    branch: codex/ranger-zero-twist-stop
     config:
       port_name: can_ranger
       robot_model: ranger_mini_v2
@@ -122,24 +145,36 @@ primitive:
       publish_odom_tf: true
       sentinel_timeout_s: 30.0
 
+  - name: piper_ctl
+    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/piper_ctl_rbnx
+    config:
+      can_port: can_piper
+      can_bitrate: 1000000
+      can_usb_address: "1-4.4:1.0"
+      auto_can_setup: false
+      auto_enable: true
+      gripper_exist: true
+      gripper_val_mutiple: 2
+      sentinel_timeout_s: 30.0
+
   # The robot's USB audio device. This is the default mic/speaker provider for
   # onboard speech; client-side audio is a separate, session-bound path.
   - name: audio_driver
     path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_driver
     config:
-      mic_device: plughw:0,0
+      mic_device: plughw:CARD=Plus,DEV=0
       mic_sample_rate: 16000
-      speaker_device: plughw:0,0
+      speaker_device: plughw:CARD=Plus,DEV=0
       speaker_sample_rate: 16000
 
-  # Client-side audio over the existing WebSocket bridge. It is deliberately a
-  # separate provider: speech/speak remains pinned to audio_driver unless a
-  # caller explicitly targets audio_client_bridge.
+  # Client-side audio is a separate provider. The client discovers this
+  # listener through Atlas and connects outward, so deployment never stores a
+  # client address or a client-owned port. Speech/speak remains pinned to the
+  # robot USB provider unless a caller explicitly selects this provider.
   - name: audio_client_bridge
     path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_client_bridge
     config:
-      host: ${AUDIO_CLIENT_SERVER_HOST}
-      port: ${AUDIO_CLIENT_SERVER_PORT}
+      transport: reverse
 
 service:
   - name: memory
@@ -153,7 +188,8 @@ service:
       speech_backend: tencent
       disable_whisper: true
       default_speaker_provider_id: audio_driver
-      tencent_asr_appid: "1258720755"
+      wake_words: ["罗伯特"]
+      tencent_asr_appid: ${TENCENT_ASR_APPID}
       tencent_asr_engine: 16k_zh_en
       tencent_tts_voice_type: 502003
       tencent_tts_region: ap-guangzhou
@@ -164,6 +200,36 @@ service:
   - name: voiceprint
     path: ${ROBONIX_SOURCE_PATH}/services/voiceprint
     config: {}
+
+  - name: llm_detect
+    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/llm_detect_rbnx
+    config:
+      llm_base_url: ${VLM_BASE_URL}
+      llm_api_key: ${VLM_API_KEY}
+      llm_model: ${VLM_MODEL}
+      llm_timeout_s: 60.0
+      temperature: 0.0
+      camera_provider_id: orbbec_camera
+      rotation_cam2arm: true
+      skip_depth: true
+
+  - name: grasp_pose
+    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/grasp_pose_rbnx
+    config:
+      hand_eye_calibration_file: ${ROBONIX_DEPLOY_DIR}/rbnx-boot/hand-eye-data/2d_homography.npy
+      default_desktop_height: -0.195
+      catch_offset: 0.00
+      box_rotation_deg: 0.0
+      output_frame: "arm/base_link"
+      approach_dist: 0.30
+
+  - name: roboarm_ik
+    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/roboarm_ik_rbnx
+    config:
+      teach_safe_joints_deg: [0.0, 0.0, 0.0, 0.0, 25.0, 0.0]
+      carry_to_teach_safe_waypoints_deg:
+        - [1.711088, 81.721467, -80.833939, -3.718019, 49.375697, -6.657454]
+      max_gripper_width: 0.08
 
   - name: mapping
     url: https://github.com/syswonder/service-map-rbnx
@@ -176,14 +242,37 @@ service:
       odom_frame: odom
       map_frame: map
       use_sim_time: false
+      map_id: ranger_lab
+      # Always boot into a fresh temporary mapping session. Saved maps are
+      # immutable artifacts and are loaded explicitly by the operator.
       map_mode: mapping
-      reset_map: false
+      # Field baseline read from the known-good v0.1 315/ranger_3f databases.
+      rtabmap_profile: ranger_mini_v3
+      # Production localization uses chassis odometry. The timestamped Mid360
+      # cloud is deskewed against odom before RTAB-Map consumes it.
+      # Use RGB for visual constraints and fuse depth with Mid360 occupancy.
+      # Camera data stays inside RTAB-Map; Nav2 LaserScan remains lidar-only.
+      # Use the chassis odom until a separately declared Mid360 LIO provider
+      # passes the static-drift gate. RTAB-Map still fuses RGB-D and Mid360.
+      rtabmap_inputs: [lidar, rgbd, odom]
+      deskew_lidar: true
+      # Atlas discovers all streams; only Mid360 builds the 2D occupancy grid.
+      occupancy_sources: [lidar]
+      rtabmap_params:
+        Reg/Strategy: 2
+        Vis/MaxDepth: 3.0
+      sensor_providers:
+        lidar3d: mid360_lidar
+        imu: mid360_imu
+        odom: ranger_chassis
+        rgb: realsense_camera
+        depth: realsense_camera
       sensors:
         lidar2d: false
         lidar3d: true
         rgb: true
         depth: true
-        imu: false
+        imu: true
         odom: true
 
   - name: nav2
@@ -192,8 +281,18 @@ service:
     manifest: package_manifest.jetson-native.yaml
     config:
       params_profile: ranger_mini_v3
+      # Nav2 projects the already-correct MID360 cloud directly. A second
+      # odom-based deskew produced ghost LaserScan returns when TF lagged.
+      scan_deskewing: false
+      odom_frame: odom
       use_sim_time: false
       action_wait_s: 90.0
+      provider_ids:
+        map: mapping
+        # Canonical odom owner. Replace with a declared Mid360 LIO provider
+        # only after that provider exists and passes the static-drift gate.
+        odom: ranger_chassis
+        scan_cloud: mid360_lidar
 
 skill:
   - name: explore
@@ -202,3 +301,25 @@ skill:
     config:
       explore_mode: frontier
       timeout_s: 600
+
+  # Long-lived passerby greeting watch. Its Qwen3 VLM configuration is
+  # independent from Pilot, and the skill never commands robot motion.
+  - name: greet
+    path: ./skills/greet
+    config:
+      # Bind the front RGB stream explicitly; this robot also has an Orbbec
+      # provider exposing the same camera/rgb contract.
+      camera_provider_id: realsense_camera
+      vlm:
+        upstream: ${GREET_VLM_BASE_URL}
+        api_key: ${GREET_VLM_API_KEY}
+        model: ${GREET_VLM_MODEL}
+      yolo_conf: 0.4
+      yolo_min_box_frac: 0.30
+      period_s: 1.5
+      cooldown_s: 15.0
+
+  - name: pick
+    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/pick_skill_rbnx
+    config:
+      park_at_teach_safe_after_pick: true

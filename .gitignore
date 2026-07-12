@@ -7,3 +7,6 @@ logs/
 .idea/
 *.swp
 __pycache__/
+logs_history
+.venv/
+**/weights/*.pt
