@@ -9,4 +9,7 @@ logs/
 __pycache__/
 logs_history
 .venv/
+current_map_pose.json
 **/weights/*.pt
+
+./*.json

@@ -23,6 +23,13 @@ collect_pids() {
     [[ -n "$pid" ]] && pids+=("$pid")
   done < <(pgrep -f "$CACHE_DIR" || true)
 
+  # The Piper packages currently live outside this deploy's cache directory.
+  # Include them in the same graceful TERM -> KILL lifecycle instead of using
+  # an unconditional kill -9 after the normal shutdown path.
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] && pids+=("$pid")
+  done < <(pgrep -f "piper" || true)
+
   # These are the fixed control-plane ports of this deploy. A second stack
   # cannot legitimately own them at the same time, so this also recovers from
   # a missing rbnx-boot/state.json after an interrupted boot.
