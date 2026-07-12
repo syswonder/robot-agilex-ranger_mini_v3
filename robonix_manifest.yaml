@@ -135,7 +135,7 @@ primitive:
 
   - name: ranger_chassis
     url: https://github.com/syswonder/primitive-agilex-ranger_mini_v3-chassis-rbnx
-    branch: codex/ranger-zero-twist-stop
+    branch: main
     config:
       port_name: can_ranger
       robot_model: ranger_mini_v2
