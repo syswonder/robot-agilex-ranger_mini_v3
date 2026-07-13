@@ -152,7 +152,7 @@ primitive:
     config:
       can_port: can_piper
       can_bitrate: 1000000
-      can_usb_address: "1-4.4:1.0"
+      can_usb_address: "1-4.1:1.0"
       auto_can_setup: false
       auto_enable: true
       gripper_exist: true

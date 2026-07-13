@@ -35,6 +35,11 @@ can_ready() {
   [[ "${detail%%$'\n'*}" == *"state UP"* ]] && [[ "$detail" == *"bitrate $bitrate"* ]]
 }
 
+can_bus_info() {
+  local iface="$1"
+  ethtool -i "$iface" 2>/dev/null | awk -F': ' '$1 == "bus-info" { print $2; exit }'
+}
+
 prepare_ranger_can() {
   local iface="${RANGER_CAN_INTERFACE:-can_ranger}"
   local bitrate="${RANGER_CAN_BITRATE:-500000}"
@@ -51,6 +56,36 @@ prepare_ranger_can() {
   "${elevate[@]}" ip link set "$iface" up
   can_ready "$iface" "$bitrate" || {
     echo "Ranger CAN $iface is not UP at $bitrate bps" >&2
+    exit 1
+  }
+}
+
+prepare_piper_can() {
+  local iface="${PIPER_CAN_INTERFACE:-can_piper}"
+  local bitrate="${PIPER_CAN_BITRATE:-1000000}"
+  local usb_address="${PIPER_CAN_USB_ADDRESS:-1-4.1:1.0}"
+  local setup_script="${PIPER_CAN_SETUP_SCRIPT:-/home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/piper_ctl_rbnx/scripts/can_activate.sh}"
+  rg -q '^[[:space:]]*- name:[[:space:]]+piper_ctl([[:space:]]|$)' "$MANIFEST" || return 0
+
+  if can_ready "$iface" "$bitrate"; then
+    local current_address
+    current_address="$(can_bus_info "$iface")"
+    if [[ "$current_address" == "$usb_address" ]]; then
+      return 0
+    fi
+    echo "Piper CAN $iface is attached at '$current_address', expected '$usb_address'" >&2
+    exit 1
+  fi
+
+  [[ -f "$setup_script" ]] || {
+    echo "missing Piper CAN setup script: $setup_script" >&2
+    exit 1
+  }
+
+  echo "configuring Piper CAN $usb_address as $iface at $bitrate bps" >&2
+  bash "$setup_script" "$iface" "$bitrate" "$usb_address"
+  can_ready "$iface" "$bitrate" && [[ "$(can_bus_info "$iface")" == "$usb_address" ]] || {
+    echo "Piper CAN $iface is not ready at $bitrate bps on $usb_address" >&2
     exit 1
   }
 }
@@ -76,8 +111,9 @@ trap 'exit 143' TERM
 
 # The provider is intentionally unprivileged. Configure the deployment-owned
 # SocketCAN link here, while an interactive launch can obtain sudo once. The
-# primitive still verifies the interface and skips all sudo calls when ready.
+# primitives still verify their interfaces and skip all sudo calls when ready.
 prepare_ranger_can
+prepare_piper_can
 
 if [[ "$ROBONIX_RMW_IMPLEMENTATION" == "rmw_zenoh_cpp" ]]; then
   router_bin="/opt/ros/humble/lib/rmw_zenoh_cpp/rmw_zenohd"
