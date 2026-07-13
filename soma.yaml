@@ -131,6 +131,10 @@ robot:
           components:
             - id: gripper
               type: parallel_jaw_gripper
+              state:
+                joint_name: gripper
+                open_position_m: 0.06937
+                open_tolerance_m: 0.002
               exports:
                 - provider_id: piper_ctl
                   capabilities:

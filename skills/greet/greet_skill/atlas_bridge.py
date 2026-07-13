@@ -30,13 +30,15 @@ greet_skill = Skill(id="greet", namespace="robonix/skill/greet")
 REQUIRED_INPUTS = {
     "camera": ("robonix/primitive/camera/rgb", "ros2"),
     "speak":  ("robonix/service/speech/speak", "mcp"),
+    "soma":   ("robonix/system/soma/get_health", "grpc"),
 }
 
 ctrl = None      # GreetController
 _cfg: dict = {}  # snapshot of the deploy config from on_init
 
 
-def resolve_inputs(*, camera_provider_id: str, deadline_s: float = 5.0) -> dict[str, str]:
+def resolve_inputs(*, camera_provider_id: str, soma_provider_id: str,
+                   deadline_s: float = 5.0) -> dict[str, str]:
     """Resolve the exact configured camera and speech providers.
 
     Camera contracts are intentionally not resolved by contract alone: a robot
@@ -50,6 +52,9 @@ def resolve_inputs(*, camera_provider_id: str, deadline_s: float = 5.0) -> dict[
             "greet skill requires config.camera_provider_id; refusing to pick "
             "an arbitrary camera when multiple providers may be present"
         )
+    soma_provider_id = soma_provider_id.strip()
+    if not soma_provider_id:
+        raise RuntimeError("greet skill requires config.soma_provider_id")
 
     resolved: dict[str, str] = {}
     last_errors: dict[str, str] = {}
@@ -60,7 +65,10 @@ def resolve_inputs(*, camera_provider_id: str, deadline_s: float = 5.0) -> dict[
         for key, (cid, transport) in REQUIRED_INPUTS.items():
             if key in resolved:
                 continue
-            provider_id = camera_provider_id if key == "camera" else ""
+            provider_id = {
+                "camera": camera_provider_id,
+                "soma": soma_provider_id,
+            }.get(key, "")
             try:
                 cap = ATLAS.find_unique_capability(
                     contract_id=cid,
@@ -89,7 +97,10 @@ def resolve_inputs(*, camera_provider_id: str, deadline_s: float = 5.0) -> dict[
     for key, (cid, transport) in REQUIRED_INPUTS.items():
         if key in resolved:
             continue
-        provider_id = camera_provider_id if key == "camera" else "<unique>"
+        provider_id = {
+            "camera": camera_provider_id,
+            "soma": soma_provider_id,
+        }.get(key, "<unique>")
         reason = last_errors.get(key, "not found")
         failures.append(
             f"{key}(provider={provider_id}, contract={cid}, "
@@ -154,7 +165,6 @@ def activate():
     up the camera subscription and start the greeting loop. Idempotent."""
     global ctrl
     if ctrl is not None:
-        ctrl.start()
         return Ok()
 
     vlm = _cfg.get("vlm", {}) or {}
@@ -167,11 +177,13 @@ def activate():
     try:
         inputs = resolve_inputs(
             camera_provider_id=str(_cfg.get("camera_provider_id", "")),
+            soma_provider_id=str(_cfg.get("soma_provider_id", "")),
             deadline_s=float(_cfg.get("dependency_timeout_s", 5.0)),
         )
         from .detector import PersonDetector
         from .vlm import VlmGreeter
         from .controller import GreetController
+        from .body_state import SomaMotionMonitor
 
         detector = PersonDetector(
             weights=_cfg.get("yolo_weights"),
@@ -180,17 +192,22 @@ def activate():
             min_box_frac=float(_cfg.get("yolo_min_box_frac", 0.30)),
         )
         greeter = VlmGreeter(base_url=base_url, api_key=api_key, model=model)
+        motion_monitor = SomaMotionMonitor(
+            endpoint=inputs["soma"],
+            chassis_provider_id=str(_cfg.get("chassis_provider_id", "")),
+            timeout_s=float(_cfg.get("soma_timeout_s", 0.5)),
+        )
         ctrl = GreetController(
             camera_topic=inputs["camera"],
             speak_endpoint=inputs["speak"],
             detector=detector,
             greeter=greeter,
+            motion_monitor=motion_monitor,
             speak_target=_cfg.get("speak_target", ""),
             period_s=float(_cfg.get("period_s", 1.5)),
             cooldown_s=float(_cfg.get("cooldown_s", 15.0)),
         )
         ctrl.start_runtime()
-        ctrl.start()
     except Exception as e:  # noqa: BLE001
         return Err(f"greet skill activate failed: {e}")
     log.info("CMD_ACTIVATE ok — greeting watch running")

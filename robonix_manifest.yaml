@@ -310,6 +310,8 @@ skill:
       # Bind the front RGB stream explicitly; this robot also has an Orbbec
       # provider exposing the same camera/rgb contract.
       camera_provider_id: realsense_camera
+      soma_provider_id: soma
+      chassis_provider_id: ranger_chassis
       vlm:
         upstream: ${GREET_VLM_BASE_URL}
         api_key: ${GREET_VLM_API_KEY}

@@ -26,7 +26,9 @@ class ResolveInputsTest(unittest.TestCase):
             patch.object(atlas_bridge.greet_skill, "connect_capability", return_value=channel),
         ):
             resolved = atlas_bridge.resolve_inputs(
-                camera_provider_id="realsense_camera", deadline_s=0
+                camera_provider_id="realsense_camera",
+                soma_provider_id="soma",
+                deadline_s=0,
             )
 
         self.assertEqual(resolved["camera"], "resolved-endpoint")
@@ -38,7 +40,9 @@ class ResolveInputsTest(unittest.TestCase):
     def test_missing_camera_provider_is_rejected_before_atlas_query(self):
         with patch.object(atlas_bridge.ATLAS, "find_unique_capability") as find:
             with self.assertRaisesRegex(RuntimeError, "camera_provider_id"):
-                atlas_bridge.resolve_inputs(camera_provider_id="", deadline_s=0)
+                atlas_bridge.resolve_inputs(
+                    camera_provider_id="", soma_provider_id="soma", deadline_s=0
+                )
             find.assert_not_called()
 
     def test_atlas_error_is_preserved_in_activation_error(self):
@@ -49,7 +53,9 @@ class ResolveInputsTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "provider contract not found"):
                 atlas_bridge.resolve_inputs(
-                    camera_provider_id="realsense_camera", deadline_s=0
+                    camera_provider_id="realsense_camera",
+                    soma_provider_id="soma",
+                    deadline_s=0,
                 )
 
 

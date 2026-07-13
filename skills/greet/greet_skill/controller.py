@@ -49,12 +49,14 @@ def _rgb_to_jpeg(rgb: np.ndarray) -> Optional[bytes]:
 class GreetController:
     def __init__(self, *, camera_topic: str, speak_endpoint: str,
                  detector: PersonDetector, greeter: VlmGreeter,
+                 motion_monitor,
                  speak_target: str = "", period_s: float = 1.5,
                  cooldown_s: float = 15.0):
         self.camera_topic = camera_topic
         self.speak_endpoint = speak_endpoint
         self.detector = detector
         self.greeter = greeter
+        self.motion_monitor = motion_monitor
         self.speak_target = speak_target
         self.period_s = period_s
         self.cooldown_s = cooldown_s
@@ -72,6 +74,7 @@ class GreetController:
         self._state = "idle"
         self._last_line = ""
         self._run_id = ""
+        self._run_generation = 0
 
     # ── runtime ──────────────────────────────────────────────────────────────
     def start_runtime(self) -> None:
@@ -110,18 +113,25 @@ class GreetController:
         """Start the greeting loop (idempotent) and return a run_id for the
         async status/cancel handshake the executor requires."""
         import uuid
-        if not (self._loop_thread and self._loop_thread.is_alive()):
-            self._state = "running"
-            self._loop_thread = threading.Thread(target=self._loop, daemon=True)
-            self._loop_thread.start()
-        else:
-            self._state = "running"
+        if self._state == "running" and self._loop_thread and self._loop_thread.is_alive():
+            return self._run_id
+        self._run_generation += 1
+        generation = self._run_generation
+        self._state = "running"
         self._run_id = uuid.uuid4().hex[:8]
+        self._loop_thread = threading.Thread(
+            target=self._loop, args=(generation,), daemon=True
+        )
+        self._loop_thread.start()
         return self._run_id
 
-    def _loop(self) -> None:
-        while self._state == "running" and not self._stop.is_set():
+    def _loop(self, generation: int) -> None:
+        while (self._state == "running"
+               and generation == self._run_generation
+               and not self._stop.is_set()):
             time.sleep(self.period_s)
+            if not self.motion_monitor.is_moving():
+                continue
             with self._frame_lock:
                 frame = None if self._latest is None else self._latest.copy()
             if frame is None:
@@ -212,13 +222,16 @@ class GreetController:
         if run_id and run_id != self._run_id:
             return False, "no such run"
         self._state = "canceled"
+        self._run_generation += 1
         self._loop_thread = None
         return True, "greeting watch stopped"
 
     def stop_runtime(self) -> None:
         self._stop.set()
+        self._run_generation += 1
         try:
             if self._node is not None:
                 self._node.destroy_node()
         except Exception:  # noqa: BLE001
             pass
+        self.motion_monitor.close()
