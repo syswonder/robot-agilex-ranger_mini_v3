@@ -228,7 +228,10 @@ service:
   - name: roboarm_ik
     path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/roboarm_ik_rbnx
     config:
-      teach_safe_joints_deg: [0.0, 0.0, 0.0, 0.0, 25.0, 0.0]
+      init_joints_deg: [-1.837021, 93.526178, -36.180726, -5.065302, 17.399731, -0.323827]
+      # init_joints_deg: [0.023987, 72.176551, -59.083526, -3.669045, 59.316402, -2.063901]
+      teach_safe_joints_deg: [3.358211, 2.0, -2.0, -6.708426, 18.580102, 5.898858]
+      reset_feedback_timeout_s: 8.0
       carry_to_teach_safe_waypoints_deg:
         - [1.711088, 81.721467, -80.833939, -3.718019, 49.375697, -6.657454]
       max_gripper_width: 0.08
