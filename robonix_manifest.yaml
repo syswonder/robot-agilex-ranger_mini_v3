@@ -91,7 +91,9 @@ primitive:
       lidar_ip: 192.168.1.161
       host_ip: 192.168.1.50
       xfer_format: 0
-      sentinel_timeout_s: 45.0
+      # Three attempts including cleanup stay below Soma's 90 s INIT deadline.
+      sentinel_timeout_s: 20.0
+      livox_retries: 3
 
   - name: mid360_imu
     url: https://github.com/syswonder/primitive-livox-mid360-imu-rbnx

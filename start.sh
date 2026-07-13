@@ -26,6 +26,35 @@ set -u
 router_pid=""
 MANIFEST="${ROBONIX_MANIFEST:-$DEPLOY_DIR/robonix_manifest.yaml}"
 stack_started=0
+
+can_ready() {
+  local iface="$1"
+  local bitrate="$2"
+  local detail
+  detail="$(ip -details link show "$iface" 2>/dev/null)" || return 1
+  [[ "${detail%%$'\n'*}" == *"state UP"* ]] && [[ "$detail" == *"bitrate $bitrate"* ]]
+}
+
+prepare_ranger_can() {
+  local iface="${RANGER_CAN_INTERFACE:-can_ranger}"
+  local bitrate="${RANGER_CAN_BITRATE:-500000}"
+  rg -q '^[[:space:]]*- name:[[:space:]]+ranger_chassis([[:space:]]|$)' "$MANIFEST" || return 0
+  can_ready "$iface" "$bitrate" && return 0
+
+  echo "configuring Ranger CAN $iface at $bitrate bps" >&2
+  local -a elevate=()
+  if [[ "$EUID" -ne 0 ]]; then
+    elevate=(sudo)
+  fi
+  "${elevate[@]}" ip link set "$iface" down
+  "${elevate[@]}" ip link set "$iface" type can bitrate "$bitrate"
+  "${elevate[@]}" ip link set "$iface" up
+  can_ready "$iface" "$bitrate" || {
+    echo "Ranger CAN $iface is not UP at $bitrate bps" >&2
+    exit 1
+  }
+}
+
 cleanup() {
   local status=$?
   trap - EXIT INT TERM
@@ -44,6 +73,11 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+# The provider is intentionally unprivileged. Configure the deployment-owned
+# SocketCAN link here, while an interactive launch can obtain sudo once. The
+# primitive still verifies the interface and skips all sudo calls when ready.
+prepare_ranger_can
 
 if [[ "$ROBONIX_RMW_IMPLEMENTATION" == "rmw_zenoh_cpp" ]]; then
   router_bin="/opt/ros/humble/lib/rmw_zenoh_cpp/rmw_zenohd"
