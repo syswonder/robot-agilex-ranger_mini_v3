@@ -133,8 +133,10 @@ robot:
               type: parallel_jaw_gripper
               state:
                 joint_name: gripper
-                open_position_m: 0.06937
-                open_tolerance_m: 0.002
+                # Piper reports about 0.079 m at the commanded 0.080 m
+                # fully-open pose. Treat that calibrated range as empty/open.
+                open_position_m: 0.080
+                open_tolerance_m: 0.003
               exports:
                 - provider_id: piper_ctl
                   capabilities:
