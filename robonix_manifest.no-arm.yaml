@@ -54,7 +54,7 @@ system:
     listen: 0.0.0.0:50051
     log: info
   executor:
-    listen: 127.0.0.1:50061
+    listen: 0.0.0.0:50061
     log: info
   pilot:
     listen: 127.0.0.1:50071
