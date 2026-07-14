@@ -34,13 +34,15 @@ URDF camera transform published by `robot_description`.
 
 ## Prepare
 
-Install the Robonix `dev` toolchain from its source clone, then install the
-ROS dependencies once:
+Robonix `dev` is the recommended branch for ordinary deployments. This
+repository currently reproduces the Ranger integration stack on `dev-next`
+(including provider-pinned Scene RGB-D ingest); use `dev-next` until those
+changes are merged into `dev`. Then install the ROS dependencies once:
 
 ```bash
 cd ~/wheatfox/robonix
-git switch dev
-git pull --ff-only origin dev
+git switch dev-next
+git pull --ff-only origin dev-next
 make install
 
 sudo apt install ros-humble-rmw-zenoh-cpp \
