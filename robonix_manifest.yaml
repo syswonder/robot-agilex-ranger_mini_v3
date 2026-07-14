@@ -49,13 +49,10 @@ env:
 system:
   atlas:
     listen: 0.0.0.0:50051
-    log: info
   executor:
     listen: 0.0.0.0:50061
-    log: info
   pilot:
     listen: 127.0.0.1:50071
-    log: info
     vlm:
       upstream: ${VLM_BASE_URL}
       api_key: ${VLM_API_KEY}
@@ -63,14 +60,10 @@ system:
       api_format: openai
   liaison:
     listen: 0.0.0.0:50081
-    log: info
   soma:
     listen: 127.0.0.1:50091
-    log: info
-    provider_id: soma
     robot_yaml: ${ROBONIX_DEPLOY_DIR}/soma.yaml
   scene:
-    log: info
     camera_provider_id: realsense_camera
 
 primitive:
@@ -87,35 +80,24 @@ primitive:
     url: https://github.com/syswonder/primitive-livox-mid360-lidar-rbnx
     branch: main
     config:
-      lidar_topic: /scanner/cloud
-      imu_topic: /livox/imu
       lidar_ip: 192.168.1.161
       host_ip: 192.168.1.50
       xfer_format: 0
       # Three attempts including cleanup stay below Soma's 90 s INIT deadline.
       sentinel_timeout_s: 20.0
-      livox_retries: 3
 
   - name: mid360_imu
     url: https://github.com/syswonder/primitive-livox-mid360-imu-rbnx
     branch: main
     config:
-      imu_topic: /livox/imu
       sentinel_timeout_s: 45.0
 
   - name: realsense_camera
     url: https://github.com/syswonder/primitive-intel-realsense_d435i-camera-rbnx
     branch: main
     config:
-      camera_name: camera_435i
-      rgb_profile: 640x480x30
       depth_profile: 640x480x30
-      align_depth: true
-      spatial_filter: true
-      temporal_filter: true
-      hole_filling_filter: false
       enable_imu: false
-      enable_sync: true
       sentinel_timeout_s: 45.0
 
   # Wrist-mounted Orbbec Dabai DCW used only by the Piper grasp pipeline.
@@ -123,42 +105,23 @@ primitive:
   - name: orbbec_camera
     path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/OrbbecSDK_rbnx
     config:
-      camera_name: camera
       enable_depth: false
       depth_registration: false
-      enable_d2c_viewer: false
       color_width: 1280
       color_height: 720
-      color_fps: 10
       color_format: YUYV
-      depth_width: 640
-      depth_height: 400
-      depth_fps: 10
-      sentinel_timeout_s: 30.0
 
   - name: ranger_chassis
     url: https://github.com/syswonder/primitive-agilex-ranger_mini_v3-chassis-rbnx
     branch: main
     config:
       port_name: can_ranger
-      robot_model: ranger_mini_v2
-      odom_topic_name: odom
-      odom_frame: odom
-      base_frame: base_link
       publish_odom_tf: true
-      sentinel_timeout_s: 30.0
 
   - name: piper_ctl
     path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/piper_ctl_rbnx
     config:
       can_port: can_piper
-      can_bitrate: 1000000
-      can_usb_address: "1-4.1:1.0"
-      auto_can_setup: false
-      auto_enable: true
-      gripper_exist: true
-      gripper_val_mutiple: 2
-      sentinel_timeout_s: 30.0
 
   # The robot's USB audio device. This is the default mic/speaker provider for
   # onboard speech; client-side audio is a separate, session-bound path.
@@ -176,29 +139,19 @@ primitive:
   # robot USB provider unless a caller explicitly selects this provider.
   - name: audio_client_bridge
     path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_client_bridge
-    config:
-      transport: reverse
+    config: {}
 
 service:
   - name: memory
     path: ${ROBONIX_SOURCE_PATH}/services/memsearch
-    config:
-      backend: sqlite
+    config: {}
 
   - name: speech
     path: ${ROBONIX_SOURCE_PATH}/services/speech
     config:
-      speech_backend: tencent
-      disable_whisper: true
       default_speaker_provider_id: audio_driver
-      wake_words: ["罗伯特"]
       tencent_asr_appid: ${TENCENT_ASR_APPID}
-      tencent_asr_engine: 16k_zh
       tencent_tts_voice_type: 502003
-      tencent_tts_region: ap-guangzhou
-      tencent_tts_model_type: 1
-      tencent_tts_sample_rate: 16000
-      tencent_tts_codec: pcm
 
   - name: voiceprint
     path: ${ROBONIX_SOURCE_PATH}/services/voiceprint
@@ -211,7 +164,6 @@ service:
       llm_api_key: ${VLM_API_KEY}
       llm_model: ${VLM_MODEL}
       llm_timeout_s: 60.0
-      temperature: 0.0
       camera_provider_id: orbbec_camera
       rotation_cam2arm: true
       skip_depth: true
@@ -222,9 +174,6 @@ service:
       hand_eye_calibration_file: ${ROBONIX_DEPLOY_DIR}/rbnx-boot/hand-eye-data/2d_homography.npy
       default_desktop_height: -0.195
       catch_offset: 0.00
-      box_rotation_deg: 0.0
-      output_frame: "arm/base_link"
-      approach_dist: 0.30
 
   - name: roboarm_ik
     path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/roboarm_ik_rbnx
@@ -232,66 +181,43 @@ service:
       init_joints_deg: [-1.837021, 93.526178, -36.180726, -5.065302, 17.399731, -0.323827]
       # init_joints_deg: [0.023987, 72.176551, -59.083526, -3.669045, 59.316402, -2.063901]
       teach_safe_joints_deg: [3.358211, 2.0, -2.0, -6.708426, 18.580102, 5.898858]
-      reset_feedback_timeout_s: 8.0
       carry_to_teach_safe_waypoints_deg:
         - [1.711088, 81.721467, -80.833939, -3.718019, 49.375697, -6.657454]
-      max_gripper_width: 0.08
 
   - name: mapping
     url: https://github.com/syswonder/service-map-rbnx
     branch: main
     manifest: package_manifest.jetson-native.yaml
     config:
-      algo: rtabmap
-      platform: jetson_orin
-      base_frame: base_link
-      odom_frame: odom
-      map_frame: map
-      use_sim_time: false
-      map_id: ranger_lab
-      # Always boot into a fresh temporary mapping session. Saved maps are
-      # immutable artifacts and are loaded explicitly by the operator.
-      map_mode: mapping
-      # Field baseline read from the known-good v0.1 315/ranger_3f databases.
-      rtabmap_profile: ranger_mini_v3
       # Production localization uses chassis odometry. The timestamped Mid360
       # cloud is deskewed against odom before RTAB-Map consumes it.
       # Use RGB for visual constraints and fuse depth with Mid360 occupancy.
       # Camera data stays inside RTAB-Map; Nav2 LaserScan remains lidar-only.
       # Use the chassis odom until a separately declared Mid360 LIO provider
       # passes the static-drift gate. RTAB-Map still fuses RGB-D and Mid360.
-      rtabmap_inputs: [lidar, rgbd, odom]
       deskew_lidar: true
       # Atlas discovers all streams; only Mid360 builds the 2D occupancy grid.
       occupancy_sources: [lidar]
-      rtabmap_params:
-        Reg/Strategy: 2
-        Vis/MaxDepth: 3.0
+      params_file: config/rtabmap_params.yaml
       sensor_providers:
         lidar3d: mid360_lidar
-        imu: mid360_imu
         odom: ranger_chassis
         rgb: realsense_camera
         depth: realsense_camera
-      sensors:
-        lidar2d: false
-        lidar3d: true
-        rgb: true
-        depth: true
-        imu: true
-        odom: true
 
   - name: nav2
     url: https://github.com/syswonder/service-navigation-rbnx
     branch: main
     manifest: package_manifest.jetson-native.yaml
     config:
-      params_profile: ranger_mini_v3
-      # Nav2 projects the already-correct MID360 cloud directly. A second
-      # odom-based deskew produced ghost LaserScan returns when TF lagged.
-      scan_deskewing: false
-      odom_frame: odom
-      use_sim_time: false
+      params_file: config/nav2_params.yaml
+      bt_xml_file: config/navigate.xml
+      scan_projection:
+        enabled: true
+        min_height_m: 0.30
+        max_height_m: 1.40
+        range_max_m: 12.0
+        self_filter_margin_m: 0.05
       action_wait_s: 90.0
       provider_ids:
         map: mapping
@@ -304,9 +230,7 @@ skill:
   - name: explore
     url: https://github.com/syswonder/skill-explore-rbnx
     branch: main
-    config:
-      explore_mode: frontier
-      timeout_s: 600
+    config: {}
 
   # Long-lived passerby greeting watch. Its Qwen3 VLM configuration is
   # independent from Pilot, and the skill never commands robot motion.
@@ -322,10 +246,6 @@ skill:
         upstream: ${GREET_VLM_BASE_URL}
         api_key: ${GREET_VLM_API_KEY}
         model: ${GREET_VLM_MODEL}
-      yolo_conf: 0.4
-      yolo_min_box_frac: 0.30
-      period_s: 1.5
-      cooldown_s: 15.0
 
   - name: pick
     path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/pick_skill_rbnx
