@@ -163,7 +163,7 @@ service:
     path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/grasp_pose_rbnx
     config:
       hand_eye_calibration_file: ${ROBONIX_DEPLOY_DIR}/rbnx-boot/hand-eye-data/2d_homography.npy
-      default_desktop_height: -0.195
+      default_desktop_height: -0.21
       catch_offset: 0.00
 
   - name: roboarm_ik
