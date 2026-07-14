@@ -26,6 +26,19 @@ are defined in [`robonix_manifest.yaml`](robonix_manifest.yaml). The robot body,
 component hierarchy, footprint, and provider-to-component mapping are defined
 in [`soma.yaml`](soma.yaml).
 
+Robot-specific algorithm configuration is also deployment-owned:
+
+- [`config/rtabmap_params.yaml`](config/rtabmap_params.yaml) contains the full
+  Ranger RTAB-Map parameter set.
+- [`config/nav2_params.yaml`](config/nav2_params.yaml) contains the complete
+  Ranger Nav2 configuration.
+- [`config/navigate.xml`](config/navigate.xml) contains the Ranger navigation
+  BehaviorTree.
+
+The manifest references these files with paths relative to this repository.
+The Mapping and Navigation provider repositories contain templates only; do
+not move Ranger dimensions, sensor limits, or controller policy upstream.
+
 Scene is pinned to `realsense_camera`. That provider supplies both aligned RGB
 and depth (plus camera calibration); the wrist Orbbec cannot be selected by
 Atlas ordering. Scene obtains the robot's globally corrected pose from the
@@ -77,6 +90,13 @@ Operator pages:
 - Mapping: `http://<robot-host>:8091/`
 - Atlas for Robonix Client: `<robot-host>:50051`
 - Liaison for Robonix Client: `<robot-host>:50081`
+
+Static deployment checks do not start hardware:
+
+```bash
+python3 -m unittest -v \
+  test_manifest_config.py test_nav2_config.py test_nav2_acceptance.py
+```
 
 ## RViz
 
