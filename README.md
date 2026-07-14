@@ -7,6 +7,25 @@ The deployment uses native ROS 2 packages on Jetson. Zenoh RMW is the default;
 `start.sh` starts a local `rmw_zenohd` for the lifetime of the boot.
 Scene, Mapping, and Nav2 are explicitly selected for their Jetson-native paths.
 
+![SysWonder AgileX Ranger Mini v3 robot](assets/robot.jpg)
+
+## Hardware
+
+| Component | Model | Deployment configuration |
+| --- | --- | --- |
+| Mobile base | AgileX Ranger Mini v3 | Four-wheel steer/drive chassis; `can_ranger` at 500 kbit/s; `base_link` footprint 0.74 m x 0.50 m |
+| Compute | NVIDIA Jetson AGX Orin | aarch64 Jetson-native packages, ROS 2 Humble, and `rmw_zenoh_cpp` |
+| Manipulator | AgileX Piper | Six-axis arm with parallel gripper; `can_piper` at 1 Mbit/s |
+| 3D lidar and IMU | Livox MID-360 | Ethernet lidar at `192.168.1.161`; host interface `192.168.1.50`; lidar and integrated IMU are separate Robonix providers |
+| Front RGB-D camera | Intel RealSense D435i | 640 x 480 at 30 FPS for RGB and aligned depth; spatial and temporal depth filters enabled; camera IMU disabled |
+| Wrist camera | Orbbec Dabai DCW | 1280 x 720 YUYV color at 10 FPS; depth is disabled in the current pick pipeline |
+| Audio | USB audio device | 16 kHz mono microphone and speaker through `plughw:CARD=Plus,DEV=0` |
+
+The exact provider IDs, device addresses, sensor profiles, and runtime options
+are defined in [`robonix_manifest.yaml`](robonix_manifest.yaml). The robot body,
+component hierarchy, footprint, and provider-to-component mapping are defined
+in [`soma.yaml`](soma.yaml).
+
 ## Prepare
 
 Install the Robonix `dev` toolchain from its source clone, then install the
