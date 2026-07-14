@@ -24,7 +24,8 @@ Scene, Mapping, and Nav2 are explicitly selected for their Jetson-native paths.
 The exact provider IDs, device addresses, sensor profiles, and runtime options
 are defined in [`robonix_manifest.yaml`](robonix_manifest.yaml). The robot body,
 component hierarchy, footprint, and provider-to-component mapping are defined
-in [`soma.yaml`](soma.yaml).
+in [`soma.yaml`](soma.yaml). Vitals consumes Soma's body-health stream and
+aggregates Robonix module health on port `50093` for trusted operator clients.
 
 Robot-specific algorithm configuration is also deployment-owned:
 
