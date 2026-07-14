@@ -22,6 +22,10 @@ class DeployConfigTest(unittest.TestCase):
             self.assertEqual(doc["catalog"]["license"], "Apache-2.0")
             self.assertTrue(doc["catalog"]["maintainers"])
 
+    def test_vitals_is_enabled_for_full_and_no_arm_deployments(self):
+        for doc in (self.full, self.no_arm):
+            self.assertEqual(doc["system"]["vitals"]["listen"], "0.0.0.0:50093")
+
     def test_removed_or_redundant_fields_do_not_return(self):
         forbidden = {
             ("primitive", "mid360_lidar"): {"lidar_topic", "imu_topic", "livox_retries"},

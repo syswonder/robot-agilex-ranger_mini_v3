@@ -63,6 +63,10 @@ system:
   soma:
     listen: 127.0.0.1:50091
     robot_yaml: ${ROBONIX_DEPLOY_DIR}/soma.yaml
+  vitals:
+    # Vitals consumes Soma's body-health stream and aggregates Robonix module
+    # health. Bind externally so trusted operator clients can read dashboards.
+    listen: 0.0.0.0:50093
   scene:
     camera_provider_id: realsense_camera
 
