@@ -21,7 +21,7 @@ planner_server:
       allow_unknown: true
     tf_buffer_duration: 0.5  # 秒
 
-    
+
 controller_server:
   ros__parameters:
     use_sim_time: false
@@ -111,7 +111,7 @@ controller_server:
       PersistentRotateToGoal.no_progress_timeout: 3.0
       PersistentRotateToGoal.min_yaw_progress: 0.04
       PersistentRotateToGoal.rotation_margin: 0.50
-    
+
 
 bt_navigator:
   ros__parameters:
@@ -149,7 +149,7 @@ local_costmap:
       footprint: "__ROBONIX_FOOTPRINT__"
       footprint_padding: 0.05
       # robot_radius: 0.32
-      
+
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
