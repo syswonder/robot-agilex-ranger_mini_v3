@@ -26,6 +26,12 @@ are defined in [`robonix_manifest.yaml`](robonix_manifest.yaml). The robot body,
 component hierarchy, footprint, and provider-to-component mapping are defined
 in [`soma.yaml`](soma.yaml).
 
+Scene is pinned to `realsense_camera`. That provider supplies both aligned RGB
+and depth (plus camera calibration); the wrist Orbbec cannot be selected by
+Atlas ordering. Scene obtains the robot's globally corrected pose from the
+Mapping `robonix/service/map/pose` contract and combines it with the complete
+URDF camera transform published by `robot_description`.
+
 ## Prepare
 
 Install the Robonix `dev` toolchain from its source clone, then install the
@@ -87,10 +93,9 @@ The unchanged historical configuration is `rviz/ranger_v0.1.rviz`.
 
 ## Safety and bring-up order
 
-Keep the chassis powered off while validating the passive stack. The chassis,
-Nav2, and Explore entries remain commented in `robonix_manifest.yaml`; LiDAR,
-IMU, camera, Robot Description, Scene, and Mapping can be inspected without exposing
-motion capabilities.
+The checked-in full manifest includes the chassis, Piper arm, Nav2, and skills;
+starting it exposes physical motion capabilities. Keep the hardware emergency
+stop available and clear the workspace before full bring-up.
 
 After the chassis is powered on:
 

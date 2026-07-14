@@ -5,6 +5,7 @@ catalog:
   name: robonix.robot.agilex.ranger_mini_v3
   version: 0.2.0
   description: Robonix deployment for the AgileX Ranger Mini v3 robot.
+  license: Apache-2.0
   tags: [robot, deploy, agilex, ranger_mini_v3, jetson, lidar, rgbd, scene, mapping, navigation]
   maintainers:
     - wheatfox <wheatfox17@icloud.com>
@@ -192,7 +193,7 @@ service:
       default_speaker_provider_id: audio_driver
       wake_words: ["罗伯特"]
       tencent_asr_appid: ${TENCENT_ASR_APPID}
-      tencent_asr_engine: 16k_zh_en
+      tencent_asr_engine: 16k_zh
       tencent_tts_voice_type: 502003
       tencent_tts_region: ap-guangzhou
       tencent_tts_model_type: 1
