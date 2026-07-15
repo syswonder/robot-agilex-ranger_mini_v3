@@ -17,7 +17,7 @@ fi
 
 export PATH="$HOME/.cargo/bin:$PATH"
 export ROBONIX_DEPLOY_DIR="$DEPLOY_DIR"
-export ROBONIX_RMW_IMPLEMENTATION="${ROBONIX_RMW_IMPLEMENTATION:-rmw_zenoh_cpp}"
+export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_zenoh_cpp}"
 
 set +u
 source /opt/ros/humble/setup.bash
@@ -115,7 +115,7 @@ trap 'exit 143' TERM
 prepare_ranger_can
 prepare_piper_can
 
-if [[ "$ROBONIX_RMW_IMPLEMENTATION" == "rmw_zenoh_cpp" ]]; then
+if [[ "$RMW_IMPLEMENTATION" == "rmw_zenoh_cpp" ]]; then
   router_bin="/opt/ros/humble/lib/rmw_zenoh_cpp/rmw_zenohd"
   [[ -x "$router_bin" ]] || {
     echo "missing $router_bin; install ros-humble-rmw-zenoh-cpp" >&2

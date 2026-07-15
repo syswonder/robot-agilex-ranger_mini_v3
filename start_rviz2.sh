@@ -17,7 +17,7 @@ set +u
 source /opt/ros/humble/setup.bash
 set -u
 
-export RMW_IMPLEMENTATION="${ROBONIX_RMW_IMPLEMENTATION:-rmw_zenoh_cpp}"
+export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_zenoh_cpp}"
 if [[ "$RMW_IMPLEMENTATION" == "rmw_zenoh_cpp" ]]; then
   export ZENOH_CONFIG_OVERRIDE="${ZENOH_CONFIG_OVERRIDE:-connect/endpoints=[\"tcp/127.0.0.1:7447\"]}"
   python3 - <<'PY'

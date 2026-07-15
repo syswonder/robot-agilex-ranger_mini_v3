@@ -6,6 +6,11 @@ MID-360, Intel RealSense D435i, RTAB-Map, Scene, Nav2, and Explore.
 The deployment uses native ROS 2 packages on Jetson. Zenoh RMW is the default;
 `start.sh` starts a local `rmw_zenohd` for the lifetime of the boot.
 Scene, Mapping, and Nav2 are explicitly selected for their Jetson-native paths.
+Each package entry selects its own `package_manifest*.yaml`, so architecture and
+native/container choices are package properties rather than global environment
+variables. The same robot repository may therefore keep separate full/no-arm
+deployment manifests while selecting the appropriate package target for each
+component.
 
 ![SysWonder AgileX Ranger Mini v3 robot](assets/robot.jpg)
 
@@ -39,6 +44,13 @@ Robot-specific algorithm configuration is also deployment-owned:
 The manifest references these files with paths relative to this repository.
 The Mapping and Navigation provider repositories contain templates only; do
 not move Ranger dimensions, sensor limits, or controller policy upstream.
+
+Package target selection and algorithm configuration are separate. A package's
+`manifest:` chooses a build/start implementation such as Jetson native or a
+container. If a provider exposes a named `params_profile`, that name must be one
+the provider implements upstream; a robot manifest cannot invent a new profile.
+Robot-specific runtime values remain in this repository's parameter files (or
+documented config overrides) and do not create a new upstream profile.
 
 Scene is pinned to `realsense_camera`. That provider supplies both aligned RGB
 and depth (plus camera calibration); the wrist Orbbec cannot be selected by
@@ -82,8 +94,9 @@ bash build.sh
 bash start.sh
 ```
 
-The wrappers set `ROBONIX_DEPLOY_DIR`, source ROS Humble, select the native
-Jetson build, and keep the Zenoh router lifecycle tied to `rbnx boot`.
+The wrappers set `ROBONIX_DEPLOY_DIR`, source ROS Humble, and keep the Zenoh
+router lifecycle tied to `rbnx boot`. Each package's selected manifest chooses
+its Jetson-native build and start commands.
 
 Operator pages:
 

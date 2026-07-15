@@ -26,6 +26,58 @@ class DeployConfigTest(unittest.TestCase):
         for doc in (self.full, self.no_arm):
             self.assertEqual(doc["system"]["vitals"]["listen"], "0.0.0.0:50093")
 
+    def test_ros_middleware_uses_the_standard_environment_variable(self):
+        for doc in (self.full, self.no_arm):
+            self.assertEqual(doc["env"]["RMW_IMPLEMENTATION"], "rmw_zenoh_cpp")
+            self.assertNotIn("ROBONIX_RMW_IMPLEMENTATION", doc["env"])
+
+        for script_name in ("start.sh", "start_rviz2.sh"):
+            script = (ROOT / script_name).read_text()
+            self.assertIn("RMW_IMPLEMENTATION", script)
+            self.assertNotIn("ROBONIX_RMW_IMPLEMENTATION", script)
+
+        env_example = (ROOT / ".env.example").read_text()
+        self.assertNotIn("ROBONIX_RMW_IMPLEMENTATION", env_example)
+        self.assertNotIn("RMW_IMPLEMENTATION=", env_example)
+
+    def test_target_selection_lives_in_package_manifests(self):
+        redundant_env = {
+            "ROBONIX_ZENOH_ROUTER",
+            "ROBONIX_ZENOH_MODE",
+            "RBNX_BUILD_TARGET",
+            "ROBONIX_SCENE_FORCE",
+            "ROBONIX_SCENE_PLATFORM",
+            "ROBONIX_SCENE_ROS_DISTRO",
+            "SCENE_NATIVE_PYTHON",
+            "SCENE_WEB_PORT",
+            "ROBONIX_MAPPING_FORCE",
+            "ROBONIX_MAPPING_PLATFORM",
+            "MAPPING_WEBUI_PORT",
+            "ROBONIX_NAV2_FORCE",
+            "ROBONIX_NAV2_PLATFORM",
+        }
+        for doc in (self.full, self.no_arm):
+            self.assertFalse(redundant_env & set(doc["env"]))
+            self.assertEqual(
+                doc["system"]["scene"]["manifest"],
+                "package_manifest.jetson-native.yaml",
+            )
+            self.assertEqual(doc["system"]["scene"]["web_port"], 50107)
+
+            services = entries(doc, "service")
+            self.assertEqual(
+                services["mapping"]["manifest"],
+                "package_manifest.jetson-native.yaml",
+            )
+            self.assertEqual(services["mapping"]["config"]["webui_port"], 8091)
+            self.assertEqual(
+                services["nav2"]["manifest"],
+                "package_manifest.jetson-native.yaml",
+            )
+            self.assertEqual(
+                services["speech"]["config"]["speech_backend"], "tencent"
+            )
+
     def test_removed_or_redundant_fields_do_not_return(self):
         forbidden = {
             ("primitive", "mid360_lidar"): {"lidar_topic", "imu_topic", "livox_retries"},
