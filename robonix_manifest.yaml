@@ -11,25 +11,10 @@ catalog:
     - wheatfox <wheatfox17@icloud.com>
 
 env:
-  # Single-host ROS 2 transport. scripts/start.sh owns the local rmw_zenohd
-  # process; all native packages inherit the same RMW and router endpoint.
+  # Single-host ROS 2 transport. scripts/start.sh owns the local rmw_zenohd;
+  # native packages inherit the standard ROS 2 selector from rbnx boot.
   ROS_DOMAIN_ID: "0"
   RMW_IMPLEMENTATION: rmw_zenoh_cpp
-  ROBONIX_ZENOH_ROUTER: tcp/127.0.0.1:7447
-  ROBONIX_ZENOH_MODE: client
-
-  # Jetson packages run against host ROS 2 and the JetPack CUDA Python stack.
-  RBNX_BUILD_TARGET: jetson-native
-  ROBONIX_SCENE_FORCE: native
-  ROBONIX_SCENE_PLATFORM: jetson_orin
-  ROBONIX_SCENE_ROS_DISTRO: humble
-  SCENE_NATIVE_PYTHON: python3
-  SCENE_WEB_PORT: "50107"
-  ROBONIX_MAPPING_FORCE: native
-  ROBONIX_MAPPING_PLATFORM: jetson_orin
-  MAPPING_WEBUI_PORT: "8091"
-  ROBONIX_NAV2_FORCE: native
-  ROBONIX_NAV2_PLATFORM: jetson_orin
 
   MAPPING_MAPS_DIR: ${HOME}/.robonix/maps
   SCENE_OBJECT_MEMORY_DB: ${HOME}/.robonix/scene/objects.db
@@ -67,7 +52,9 @@ system:
     # health. Bind externally so trusted operator clients can read dashboards.
     listen: 0.0.0.0:50093
   scene:
+    manifest: package_manifest.jetson-native.yaml
     camera_provider_id: realsense_camera
+    web_port: 50107
 
 primitive:
   # Publishes the Soma-owned URDF as /robot_description and the standard TF
@@ -152,6 +139,7 @@ service:
   - name: speech
     path: ${ROBONIX_SOURCE_PATH}/services/speech
     config:
+      speech_backend: tencent
       default_speaker_provider_id: audio_driver
       tencent_asr_appid: ${TENCENT_ASR_APPID}
       tencent_tts_voice_type: 502003
@@ -192,6 +180,7 @@ service:
     branch: main
     manifest: package_manifest.jetson-native.yaml
     config:
+      webui_port: 8091
       # Production localization uses chassis odometry. The timestamped Mid360
       # cloud is deskewed against odom before RTAB-Map consumes it.
       # Use RGB for visual constraints and fuse depth with Mid360 occupancy.
