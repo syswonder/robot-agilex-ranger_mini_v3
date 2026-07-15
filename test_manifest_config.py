@@ -26,6 +26,16 @@ class DeployConfigTest(unittest.TestCase):
         for doc in (self.full, self.no_arm):
             self.assertEqual(doc["system"]["vitals"]["listen"], "0.0.0.0:50093")
 
+    def test_ros_middleware_uses_the_standard_environment_variable(self):
+        for doc in (self.full, self.no_arm):
+            self.assertEqual(doc["env"]["RMW_IMPLEMENTATION"], "rmw_zenoh_cpp")
+            self.assertNotIn("ROBONIX_RMW_IMPLEMENTATION", doc["env"])
+
+        for script_name in ("start.sh", "start_rviz2.sh"):
+            script = (ROOT / script_name).read_text()
+            self.assertIn("RMW_IMPLEMENTATION", script)
+            self.assertNotIn("ROBONIX_RMW_IMPLEMENTATION", script)
+
     def test_removed_or_redundant_fields_do_not_return(self):
         forbidden = {
             ("primitive", "mid360_lidar"): {"lidar_topic", "imu_topic", "livox_retries"},

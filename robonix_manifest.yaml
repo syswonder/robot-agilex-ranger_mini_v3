@@ -15,7 +15,6 @@ env:
   # process; all native packages inherit the same RMW and router endpoint.
   ROS_DOMAIN_ID: "0"
   RMW_IMPLEMENTATION: rmw_zenoh_cpp
-  ROBONIX_RMW_IMPLEMENTATION: rmw_zenoh_cpp
   ROBONIX_ZENOH_ROUTER: tcp/127.0.0.1:7447
   ROBONIX_ZENOH_MODE: client
 
