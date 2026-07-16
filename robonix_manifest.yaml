@@ -166,7 +166,9 @@ service:
     url: https://github.com/syswonder/service-grasp-pose-rbnx
     branch: main
     config:
-      hand_eye_calibration_file: ../../hand-eye-data/2d_homography.npy
+      # Robot-specific, versioned with this deploy. Recalibrate after changing
+      # the wrist camera mount or the arm-to-workspace geometry.
+      hand_eye_calibration_file: ${ROBONIX_DEPLOY_DIR}/config/calibration/2d_homography.npy
       default_desktop_height: -0.21
       catch_offset: 0.00
 

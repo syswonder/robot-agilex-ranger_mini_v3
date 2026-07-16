@@ -40,6 +40,10 @@ Robot-specific algorithm configuration is also deployment-owned:
   Ranger Nav2 configuration.
 - [`config/navigate.xml`](config/navigate.xml) contains the Ranger navigation
   BehaviorTree.
+- [`config/calibration/2d_homography.npy`](config/calibration/2d_homography.npy)
+  is the hand-eye calibration for this Ranger's Piper wrist-camera mount. It is
+  a deployment asset, not a generated `rbnx-boot` cache file. Recalibrate and
+  replace it after changing the camera mount or arm/workspace geometry.
 
 The manifest references these files with paths relative to this repository.
 The Mapping and Navigation provider repositories contain templates only; do

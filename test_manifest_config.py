@@ -1,3 +1,4 @@
+import hashlib
 import unittest
 from pathlib import Path
 
@@ -138,7 +139,14 @@ class DeployConfigTest(unittest.TestCase):
         grasp = entries(self.full, "service")["grasp_pose"]["config"]
         self.assertEqual(
             grasp["hand_eye_calibration_file"],
-            "../../hand-eye-data/2d_homography.npy",
+            "${ROBONIX_DEPLOY_DIR}/config/calibration/2d_homography.npy",
+        )
+        calibration = ROOT / "config/calibration/2d_homography.npy"
+        self.assertTrue(calibration.is_file())
+        self.assertTrue(calibration.read_bytes().startswith(b"\x93NUMPY"))
+        self.assertEqual(
+            hashlib.sha256(calibration.read_bytes()).hexdigest(),
+            "aa071a7ad8dadb77f7ea0706ab10449550dbb6c41dd2674328c1b90b9ecfd7c9",
         )
 
 
