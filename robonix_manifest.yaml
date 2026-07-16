@@ -93,7 +93,8 @@ primitive:
   # Wrist-mounted Orbbec Dabai DCW used only by the Piper grasp pipeline.
   # Mapping and scene are pinned to realsense_camera in their configs below.
   - name: orbbec_camera
-    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/OrbbecSDK_rbnx
+    url: https://github.com/syswonder/primitive-orbbec-dabai_dcw-camera-rbnx
+    branch: main
     config:
       enable_depth: false
       depth_registration: false
@@ -109,7 +110,8 @@ primitive:
       publish_odom_tf: true
 
   - name: piper_ctl
-    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/piper_ctl_rbnx
+    url: https://github.com/syswonder/primitive-agilex-piper-arm-rbnx
+    branch: main
     config:
       can_port: can_piper
 
@@ -149,7 +151,8 @@ service:
     config: {}
 
   - name: llm_detect
-    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/llm_detect_rbnx
+    url: https://github.com/syswonder/service-object-detect-rbnx
+    branch: main
     config:
       llm_base_url: ${VLM_BASE_URL}
       llm_api_key: ${VLM_API_KEY}
@@ -160,14 +163,16 @@ service:
       skip_depth: true
 
   - name: grasp_pose
-    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/grasp_pose_rbnx
+    url: https://github.com/syswonder/service-grasp-pose-rbnx
+    branch: main
     config:
-      hand_eye_calibration_file: ${ROBONIX_DEPLOY_DIR}/rbnx-boot/hand-eye-data/2d_homography.npy
+      hand_eye_calibration_file: ../../hand-eye-data/2d_homography.npy
       default_desktop_height: -0.21
       catch_offset: 0.00
 
   - name: roboarm_ik
-    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/roboarm_ik_rbnx
+    url: https://github.com/syswonder/service-roboarm-ik-rbnx
+    branch: main
     config:
       init_joints_deg: [-1.837021, 93.526178, -36.180726, -5.065302, 17.399731, -0.323827]
       # init_joints_deg: [0.023987, 72.176551, -59.083526, -3.669045, 59.316402, -2.063901]
@@ -240,6 +245,7 @@ skill:
         model: ${GREET_VLM_MODEL}
 
   - name: pick
-    path: /home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/pick_skill_rbnx
+    url: https://github.com/syswonder/skill-pick-vertical-grasp-rbnx
+    branch: main
     config:
       park_at_teach_safe_after_pick: true

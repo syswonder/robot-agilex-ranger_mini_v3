@@ -120,6 +120,27 @@ class DeployConfigTest(unittest.TestCase):
         self.assertEqual(params["Grid/FootprintLength"], 0.84)
         self.assertEqual(params["Rtabmap/DetectionRate"], 5.0)
 
+    def test_manipulation_packages_are_portable_catalog_sources(self):
+        expected = {
+            ("primitive", "orbbec_camera"): "primitive-orbbec-dabai_dcw-camera-rbnx",
+            ("primitive", "piper_ctl"): "primitive-agilex-piper-arm-rbnx",
+            ("service", "llm_detect"): "service-object-detect-rbnx",
+            ("service", "grasp_pose"): "service-grasp-pose-rbnx",
+            ("service", "roboarm_ik"): "service-roboarm-ik-rbnx",
+            ("skill", "pick"): "skill-pick-vertical-grasp-rbnx",
+        }
+        for (section, name), repository in expected.items():
+            entry = entries(self.full, section)[name]
+            self.assertEqual(entry["url"], f"https://github.com/syswonder/{repository}")
+            self.assertEqual(entry["branch"], "main")
+            self.assertNotIn("path", entry)
+
+        grasp = entries(self.full, "service")["grasp_pose"]["config"]
+        self.assertEqual(
+            grasp["hand_eye_calibration_file"],
+            "../../hand-eye-data/2d_homography.npy",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
