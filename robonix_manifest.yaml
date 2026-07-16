@@ -176,6 +176,8 @@ service:
     url: https://github.com/syswonder/service-roboarm-ik-rbnx
     branch: main
     config:
+      # IK consumes the arm-only kinematic model versioned with this deployment.
+      urdf_path: ${ROBONIX_DEPLOY_DIR}/urdf/piper.urdf
       init_joints_deg: [-1.837021, 93.526178, -36.180726, -5.065302, 17.399731, -0.323827]
       # init_joints_deg: [0.023987, 72.176551, -59.083526, -3.669045, 59.316402, -2.063901]
       teach_safe_joints_deg: [3.358211, 2.0, -2.0, -6.708426, 18.580102, 5.898858]

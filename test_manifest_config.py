@@ -149,6 +149,21 @@ class DeployConfigTest(unittest.TestCase):
             "aa071a7ad8dadb77f7ea0706ab10449550dbb6c41dd2674328c1b90b9ecfd7c9",
         )
 
+        ik = entries(self.full, "service")["roboarm_ik"]["config"]
+        self.assertEqual(
+            ik["urdf_path"],
+            "${ROBONIX_DEPLOY_DIR}/urdf/piper.urdf",
+        )
+        piper_urdf = ROOT / "urdf/piper.urdf"
+        self.assertTrue(piper_urdf.is_file())
+        self.assertEqual(
+            hashlib.sha256(piper_urdf.read_bytes()).hexdigest(),
+            "d49ca5b46b0a10838bd44b01898da06340c0f4117a90bf4d5117ce0d11761dcb",
+        )
+        piper_text = piper_urdf.read_text()
+        self.assertIn('name="link6"', piper_text)
+        self.assertEqual(piper_text.count('type="revolute"'), 6)
+
 
 if __name__ == "__main__":
     unittest.main()

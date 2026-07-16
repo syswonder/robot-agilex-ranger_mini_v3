@@ -44,6 +44,10 @@ Robot-specific algorithm configuration is also deployment-owned:
   is the hand-eye calibration for this Ranger's Piper wrist-camera mount. It is
   a deployment asset, not a generated `rbnx-boot` cache file. Recalibrate and
   replace it after changing the camera mount or arm/workspace geometry.
+- [`urdf/piper.urdf`](urdf/piper.urdf) is the six-joint Piper kinematic model
+  consumed by `roboarm_ik`. The manifest references this versioned deployment
+  asset through `${ROBONIX_DEPLOY_DIR}` so a fresh clone does not depend on a
+  cache path or another checkout.
 
 The manifest references these files with paths relative to this repository.
 The Mapping and Navigation provider repositories contain templates only; do
@@ -149,5 +153,7 @@ After the chassis is powered on:
 
 `soma.yaml` and `urdf/ranger_mini.urdf` are served by Soma. The description
 contains the body footprint and sensor tree used by Pilot and other consumers.
-Mount transforms remain calibration-sensitive; update the URDF after physical
-measurement rather than compensating in Scene or Mapping.
+`urdf/piper.urdf` is currently a separate arm-only model used by the IK solver;
+it is not a substitute for the Soma body tree. Mount transforms remain
+calibration-sensitive; update the body URDF after physical measurement rather
+than compensating in Scene or Mapping.
