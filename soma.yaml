@@ -13,7 +13,7 @@ urdf:
 
 robot:
   id: ranger_mini_01
-  display_name: "AgileX Ranger Mini v3 with Piper arm, MID-360, RealSense D435i, and Orbbec wrist camera"
+  display_name: "AgileX Ranger Mini v3 with Piper arm, MID-360, front Gemini 336L, and wrist Orbbec DC1"
   family: mobile_manipulator
   root_part: base
   dimensions: { length_m: 0.74, width_m: 0.50, height_m: 1.05 }
@@ -92,16 +92,16 @@ robot:
 
         - id: front_rgbd
           type: rgbd_camera
-          urdf_link: camera_435i_link
+          urdf_link: camera_gemini330_link
           exports:
-            - provider_id: realsense_camera
+            - provider_id: orbbec_camera
               capabilities:
-                - { path: robonix/primitive/camera/rgb, description: "Stream front RealSense RGB images for mapping and scene." }
-                - { path: robonix/primitive/camera/depth, description: "Stream front RealSense aligned depth images." }
-                - { path: robonix/primitive/camera/intrinsics, description: "Publish RealSense color camera intrinsics." }
-                - { path: robonix/primitive/camera/extrinsics, description: "Publish RealSense mount extrinsics when available." }
-                - { path: robonix/primitive/camera/snapshot, description: "Capture a front RGB snapshot." }
-                - { path: robonix/primitive/camera/depth_snapshot, description: "Capture a front depth snapshot." }
+                - { path: robonix/primitive/camera/rgb, description: "Stream front Gemini 336L RGB images for Scene, Mapping, and Greet." }
+                - { path: robonix/primitive/camera/depth, description: "Stream front Gemini 336L aligned depth images." }
+                - { path: robonix/primitive/camera/intrinsics, description: "Publish front Gemini color camera intrinsics." }
+                - { path: robonix/primitive/camera/extrinsics, description: "Publish front Gemini mount extrinsics when available." }
+                - { path: robonix/primitive/camera/snapshot, description: "Capture a front Gemini RGB snapshot." }
+                - { path: robonix/primitive/camera/depth_snapshot, description: "Capture a front Gemini depth snapshot." }
 
         - id: onboard_audio
           type: audio_io
@@ -145,11 +145,11 @@ robot:
             - id: wrist_camera
               type: rgbd_camera
               exports:
-                - provider_id: orbbec_camera
+                - provider_id: orbbec_wrist_camera
                   capabilities:
-                    - { path: robonix/primitive/camera/rgb, description: "Stream wrist Orbbec RGB images for object detection." }
-                    - { path: robonix/primitive/camera/depth, description: "Stream wrist Orbbec depth images when enabled." }
-                    - { path: robonix/primitive/camera/camera_info, description: "Publish wrist Orbbec color camera intrinsics." }
+                    - { path: robonix/primitive/camera/rgb, description: "Stream wrist Orbbec DC1 RGB images for Piper object detection." }
+                    - { path: robonix/primitive/camera/depth, description: "Stream wrist Orbbec DC1 depth images when enabled." }
+                    - { path: robonix/primitive/camera/camera_info, description: "Publish wrist Orbbec DC1 color camera intrinsics." }
                 - provider_id: llm_detect
                   capabilities:
                     - { path: robonix/service/perception/object_detect/detect_object, description: "Detect named objects in the wrist camera image." }
@@ -160,28 +160,28 @@ robot:
 description:
   summary: >-
     Indoor mobile manipulator based on an AgileX Ranger Mini v3. The base uses
-    MID-360 LiDAR, RealSense RGB-D, rtabmap, and nav2 for mapping and
-    navigation. A Piper arm with an Orbbec wrist camera provides a vertical
-    top-down pick pipeline: llm_detect detects a named object in wrist RGB,
-    grasp_pose maps the bbox center through a 2D homography, and roboarm_ik
-    executes the grasp through piper_ctl.
+    MID-360 LiDAR, a front Gemini 336L RGB-D camera, rtabmap, and nav2 for
+    mapping and navigation. A Piper arm with a separate Orbbec DC1 wrist camera
+    provides a vertical top-down pick pipeline: llm_detect detects a named
+    object in wrist RGB, grasp_pose maps the bbox center through a 2D
+    homography, and roboarm_ik executes the grasp through piper_ctl.
   can_do:
     - "Drive on flat indoor floors and gentle ramps."
     - "Build and maintain a map with rtabmap."
     - "Navigate to 2D goal poses with nav2."
-    - "Use RealSense RGB-D for mapping and scene understanding."
-    - "Use the Orbbec wrist camera for named-object detection during pick."
+    - "Use the front Gemini 336L RGB-D camera for mapping and scene understanding."
+    - "Use the separate Orbbec DC1 wrist camera for named-object detection during pick."
     - "Pick table-top objects with fixed-height vertical top-down grasps."
     - "Run frontier exploration."
   cannot_do:
     - "Publish the Piper arm in the global Ranger URDF/TF tree in this minimal merge."
     - "Infer grasp height from wrist depth; grasp z comes from default_desktop_height."
     - "Execute arbitrary 6-DoF grasps; the current pick pipeline is vertical top-down only."
-    - "Use rear-facing vision; the RealSense is front-facing and the Orbbec is wrist-mounted."
+    - "Use rear-facing vision; the Gemini is front-facing and the DC1 is wrist-mounted."
     - "Climb stairs or tall curbs."
   notes:
-    - "mapping and scene pin camera provider selection to realsense_camera."
-    - "llm_detect pins camera provider selection to orbbec_camera."
+    - "mapping and scene pin the front Gemini provider to orbbec_camera."
+    - "llm_detect pins the wrist DC1 provider to orbbec_wrist_camera."
     - "piper_description is intentionally not started because its unprefixed base_link conflicts with the Ranger base_link."
     - "Piper CAN must already be up as can_piper because piper_ctl.auto_can_setup is false."
     - "grasp_pose loads rbnx-boot/hand-eye-data/2d_homography.npy and uses default_desktop_height as the final grasp z in arm/base_link."
