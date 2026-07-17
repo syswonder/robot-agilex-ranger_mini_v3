@@ -100,8 +100,9 @@ primitive:
     url: https://github.com/syswonder/primitive-orbbec-camera
     branch: main
     config:
-      # Preserve the deployed front-camera ROS namespace and URDF frame names.
-      camera_name: camera_435i
+      # Keep only the Robonix provider id stable. ROS names and frames identify
+      # the actual Gemini front camera rather than the removed RealSense.
+      camera_name: camera_gemini330
       camera_model: gemini330_series
       serial_number: CPC85630010A
       color_profile: 640x480x30
@@ -112,7 +113,7 @@ primitive:
       enable_point_cloud: false
       enable_imu: false
       base_frame: base_link
-      cam_frame: camera_435i_color_optical_frame
+      cam_frame: camera_gemini330_color_optical_frame
       sentinel_timeout_s: 45.0
 
   # Chassis motion is enabled for the supervised Ranger acceptance run. No arm
@@ -127,7 +128,8 @@ primitive:
   # The robot's USB audio device. This is the default mic/speaker provider for
   # onboard speech; client-side audio is a separate, session-bound path.
   - name: audio_driver
-    path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_driver
+    url: https://github.com/syswonder/primitive-audio-driver-rbnx
+    branch: main
     config:
       mic_device: plughw:CARD=Plus,DEV=0
       mic_sample_rate: 16000
@@ -139,7 +141,8 @@ primitive:
   # client address or a client-owned port. Speech/speak remains pinned to the
   # robot USB provider unless a caller explicitly selects this provider.
   - name: audio_client_bridge
-    path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_client_bridge
+    url: https://github.com/syswonder/primitive-audio-client-bridge-rbnx
+    branch: main
     config: {}
 
 service:
@@ -172,8 +175,10 @@ service:
       # Use the chassis odom until a separately declared Mid360 LIO provider
       # passes the static-drift gate. RTAB-Map still fuses RGB-D and Mid360.
       deskew_lidar: true
-      # Atlas discovers all streams; only Mid360 builds the 2D occupancy grid.
-      occupancy_sources: [lidar]
+      # Fuse the Gemini depth projection with Mid360 in the 2D occupancy grid.
+      # The deployment-owned RTAB-Map parameters below keep the grid z-up,
+      # ray-traced, and 2D; Nav2's LaserScan input remains lidar-only.
+      occupancy_sources: [lidar, depth]
       params_file: config/rtabmap_params.yaml
       sensor_providers:
         lidar3d: mid360_lidar

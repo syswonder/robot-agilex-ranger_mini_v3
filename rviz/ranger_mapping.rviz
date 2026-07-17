@@ -58,15 +58,15 @@ Visualization Manager:
         All Enabled: true
         base_link:
           Value: true
-        camera_435i_color_frame:
+        camera_gemini330_color_frame:
           Value: true
-        camera_435i_color_optical_frame:
+        camera_gemini330_color_optical_frame:
           Value: true
-        camera_435i_depth_frame:
+        camera_gemini330_depth_frame:
           Value: true
-        camera_435i_depth_optical_frame:
+        camera_gemini330_depth_optical_frame:
           Value: true
-        camera_435i_link:
+        camera_gemini330_link:
           Value: true
         camera_color_frame:
           Value: true
@@ -89,12 +89,12 @@ Visualization Manager:
         map:
           odom:
             base_link:
-              camera_435i_link:
-                camera_435i_color_frame:
-                  camera_435i_color_optical_frame:
+              camera_gemini330_link:
+                camera_gemini330_color_frame:
+                  camera_gemini330_color_optical_frame:
                     {}
-                camera_435i_depth_frame:
-                  camera_435i_depth_optical_frame:
+                camera_gemini330_depth_frame:
+                  camera_gemini330_depth_optical_frame:
                     {}
               livox_frame:
                 {}
@@ -354,7 +354,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /camera_435i/color/image_raw
+        Value: /camera_gemini330/color/image_raw
       Value: true
     - Class: rviz_default_plugins/Image
       Enabled: true
@@ -368,7 +368,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /camera_435i/depth/image_raw
+        Value: /camera_gemini330/depth/image_raw
       Value: true
   Enabled: true
   Global Options:

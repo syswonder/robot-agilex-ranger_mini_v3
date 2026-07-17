@@ -218,4 +218,13 @@
     <parent link="base_link"/>
     <child  link="camera_435i_link"/>
   </joint>
+
+  <!-- Orbbec Gemini 330-series front camera used by the no-arm profile.
+       The Orbbec driver owns the camera_gemini330_* child frames. -->
+  <link name="camera_gemini330_link"/>
+  <joint name="base_to_camera_gemini330" type="fixed">
+    <origin xyz="0.28 0 0.30" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child  link="camera_gemini330_link"/>
+  </joint>
 </robot>
