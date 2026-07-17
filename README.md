@@ -1,7 +1,7 @@
 # AgileX Ranger Mini v3
 
 Robonix deployment for the SysWonder Ranger Mini v3: Jetson Orin, Livox
-MID-360, Intel RealSense D435i, RTAB-Map, Scene, Nav2, and Explore.
+MID-360, Orbbec Gemini 336L, RTAB-Map, Scene, Nav2, and Explore.
 
 The deployment uses native ROS 2 packages on Jetson. Zenoh RMW is the default;
 `start.sh` starts a local `rmw_zenohd` for the lifetime of the boot.
@@ -22,8 +22,8 @@ component.
 | Compute | NVIDIA Jetson AGX Orin | aarch64 Jetson-native packages, ROS 2 Humble, and `rmw_zenoh_cpp` |
 | Manipulator | AgileX Piper | Six-axis arm with parallel gripper; `can_piper` at 1 Mbit/s |
 | 3D lidar and IMU | Livox MID-360 | Ethernet lidar at `192.168.1.161`; host interface `192.168.1.50`; lidar and integrated IMU are separate Robonix providers |
-| Front RGB-D camera | Intel RealSense D435i | 640 x 480 at 30 FPS for RGB and aligned depth; spatial and temporal depth filters enabled; camera IMU disabled |
-| Wrist camera | Orbbec Dabai DCW | 1280 x 720 YUYV color at 10 FPS; depth is disabled in the current pick pipeline |
+| Front RGB-D camera | Orbbec Gemini 336L | 640 x 480 at 30 FPS for RGB and aligned depth; selected by serial number; camera IMU disabled |
+| Wrist camera | Orbbec Dabai DC1 | 1280 x 720 YUYV color at 10 FPS; depth is disabled in the current pick pipeline |
 | Audio | USB audio device | 16 kHz mono microphone and speaker through `plughw:CARD=Plus,DEV=0` |
 
 The exact provider IDs, device addresses, sensor profiles, and runtime options
@@ -60,11 +60,12 @@ the provider implements upstream; a robot manifest cannot invent a new profile.
 Robot-specific runtime values remain in this repository's parameter files (or
 documented config overrides) and do not create a new upstream profile.
 
-Scene is pinned to `realsense_camera`. That provider supplies both aligned RGB
-and depth (plus camera calibration); the wrist Orbbec cannot be selected by
-Atlas ordering. Scene obtains the robot's globally corrected pose from the
-Mapping `robonix/service/map/pose` contract and combines it with the complete
-URDF camera transform published by `robot_description`.
+Scene is pinned to the front Gemini provider `orbbec_camera`. That provider
+supplies both aligned RGB and depth (plus camera calibration); the wrist DC1 is
+exposed separately as `orbbec_wrist_camera` and cannot be selected by Atlas
+ordering. Scene obtains the robot's globally corrected pose from the Mapping
+`robonix/service/map/pose` contract and combines it with the complete URDF
+camera transform published by `robot_description`.
 
 ## Prepare
 

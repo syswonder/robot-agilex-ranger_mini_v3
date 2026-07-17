@@ -53,7 +53,7 @@ system:
     listen: 0.0.0.0:50093
   scene:
     manifest: package_manifest.jetson-native.yaml
-    camera_provider_id: realsense_camera
+    camera_provider_id: orbbec_camera
     web_port: 50107
 
 primitive:
@@ -82,17 +82,39 @@ primitive:
     config:
       sentinel_timeout_s: 45.0
 
-  - name: realsense_camera
-    url: https://github.com/syswonder/primitive-intel-realsense_d435i-camera-rbnx
+  # Intel RealSense D435i disabled after the front RGB-D sensor was replaced by
+  # an Orbbec Gemini 330-series camera.
+  # - name: realsense_camera
+  #   url: https://github.com/syswonder/primitive-intel-realsense_d435i-camera-rbnx
+  #   branch: main
+  #   config:
+  #     depth_profile: 640x480x30
+  #     enable_imu: false
+  #     sentinel_timeout_s: 45.0
+
+  # Front-facing Gemini 336L for Scene, Mapping, and Greet. Keep this provider
+  # id aligned with the no-arm profile; ROS names identify the physical model.
+  - name: orbbec_camera
+    url: https://github.com/syswonder/primitive-orbbec-camera
     branch: main
     config:
+      camera_name: camera_gemini330
+      camera_model: gemini330_series
+      serial_number: CPC85630010A
+      color_profile: 640x480x30
       depth_profile: 640x480x30
+      depth_registration: true
+      enable_color: true
+      enable_depth: true
+      enable_point_cloud: false
       enable_imu: false
+      base_frame: base_link
+      cam_frame: camera_gemini330_color_optical_frame
       sentinel_timeout_s: 45.0
 
-  # Wrist-mounted Orbbec Dabai DCW used only by the Piper grasp pipeline.
-  # Mapping and scene are pinned to realsense_camera in their configs below.
-  - name: orbbec_camera
+  # Wrist-mounted Orbbec Dabai DC1 used only by the Piper grasp pipeline. Its
+  # provider id is intentionally distinct from the front Gemini provider.
+  - name: orbbec_wrist_camera
     url: https://github.com/syswonder/primitive-orbbec-dabai_dcw-camera-rbnx
     branch: main
     config:
@@ -118,7 +140,8 @@ primitive:
   # The robot's USB audio device. This is the default mic/speaker provider for
   # onboard speech; client-side audio is a separate, session-bound path.
   - name: audio_driver
-    path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_driver
+    url: https://github.com/syswonder/primitive-audio-driver-rbnx
+    branch: main
     config:
       mic_device: plughw:CARD=Plus,DEV=0
       mic_sample_rate: 16000
@@ -130,7 +153,8 @@ primitive:
   # client address or a client-owned port. Speech/speak remains pinned to the
   # robot USB provider unless a caller explicitly selects this provider.
   - name: audio_client_bridge
-    path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_client_bridge
+    url: https://github.com/syswonder/primitive-audio-client-bridge-rbnx
+    branch: main
     config: {}
 
 service:
@@ -158,7 +182,7 @@ service:
       llm_api_key: ${VLM_API_KEY}
       llm_model: ${VLM_MODEL}
       llm_timeout_s: 60.0
-      camera_provider_id: orbbec_camera
+      camera_provider_id: orbbec_wrist_camera
       rotation_cam2arm: true
       skip_depth: true
 
@@ -204,14 +228,15 @@ service:
       # Use the chassis odom until a separately declared Mid360 LIO provider
       # passes the static-drift gate. RTAB-Map still fuses RGB-D and Mid360.
       deskew_lidar: true
-      # Atlas discovers all streams; only Mid360 builds the 2D occupancy grid.
-      occupancy_sources: [lidar]
+      # Fuse the front Gemini depth projection with Mid360 in the 2D occupancy
+      # grid. Nav2's LaserScan input remains lidar-only.
+      occupancy_sources: [lidar, depth]
       params_file: config/rtabmap_params.yaml
       sensor_providers:
         lidar3d: mid360_lidar
         odom: ranger_chassis
-        rgb: realsense_camera
-        depth: realsense_camera
+        rgb: orbbec_camera
+        depth: orbbec_camera
 
   - name: nav2
     url: https://github.com/syswonder/service-navigation-rbnx
@@ -245,9 +270,9 @@ skill:
   - name: greet
     path: ./skills/greet
     config:
-      # Bind the front RGB stream explicitly; this robot also has an Orbbec
-      # provider exposing the same camera/rgb contract.
-      camera_provider_id: realsense_camera
+      # Bind the front Gemini explicitly; the wrist DC1 exposes the same
+      # camera/rgb contract under the distinct orbbec_wrist_camera provider.
+      camera_provider_id: orbbec_camera
       soma_provider_id: soma
       chassis_provider_id: ranger_chassis
       vlm:
