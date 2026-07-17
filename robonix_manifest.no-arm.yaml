@@ -103,6 +103,7 @@ primitive:
       # Preserve the deployed front-camera ROS namespace and URDF frame names.
       camera_name: camera_435i
       camera_model: gemini330_series
+      serial_number: CPC85630010A
       color_profile: 640x480x30
       depth_profile: 640x480x30
       depth_registration: true
