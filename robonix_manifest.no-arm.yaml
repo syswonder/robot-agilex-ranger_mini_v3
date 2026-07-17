@@ -57,7 +57,7 @@ system:
     listen: 0.0.0.0:50093
   scene:
     manifest: package_manifest.jetson-native.yaml
-    camera_provider_id: realsense_camera
+    camera_provider_id: orbbec_camera
     web_port: 50107
 
 primitive:
@@ -86,12 +86,34 @@ primitive:
     config:
       sentinel_timeout_s: 45.0
 
-  - name: realsense_camera
-    url: https://github.com/syswonder/primitive-intel-realsense_d435i-camera-rbnx
+  # Intel RealSense D435i disabled for the no-arm profile after the front
+  # RGB-D sensor was replaced by an Orbbec Gemini 330-series camera.
+  # - name: realsense_camera
+  #   url: https://github.com/syswonder/primitive-intel-realsense_d435i-camera-rbnx
+  #   branch: main
+  #   config:
+  #     depth_profile: 640x480x30
+  #     enable_imu: false
+  #     sentinel_timeout_s: 45.0
+
+  - name: orbbec_camera
+    url: https://github.com/syswonder/primitive-orbbec-camera
     branch: main
     config:
+      # Keep only the Robonix provider id stable. ROS names and frames identify
+      # the actual Gemini front camera rather than the removed RealSense.
+      camera_name: camera_gemini330
+      camera_model: gemini330_series
+      serial_number: CPC85630010A
+      color_profile: 640x480x30
       depth_profile: 640x480x30
+      depth_registration: true
+      enable_color: true
+      enable_depth: true
+      enable_point_cloud: false
       enable_imu: false
+      base_frame: base_link
+      cam_frame: camera_gemini330_color_optical_frame
       sentinel_timeout_s: 45.0
 
   # Chassis motion is enabled for the supervised Ranger acceptance run. No arm
@@ -106,7 +128,8 @@ primitive:
   # The robot's USB audio device. This is the default mic/speaker provider for
   # onboard speech; client-side audio is a separate, session-bound path.
   - name: audio_driver
-    path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_driver
+    url: https://github.com/syswonder/primitive-audio-driver-rbnx
+    branch: main
     config:
       mic_device: plughw:CARD=Plus,DEV=0
       mic_sample_rate: 16000
@@ -118,7 +141,8 @@ primitive:
   # client address or a client-owned port. Speech/speak remains pinned to the
   # robot USB provider unless a caller explicitly selects this provider.
   - name: audio_client_bridge
-    path: ${ROBONIX_SOURCE_PATH}/examples/webots/primitives/audio_client_bridge
+    url: https://github.com/syswonder/primitive-audio-client-bridge-rbnx
+    branch: main
     config: {}
 
 service:
@@ -151,14 +175,16 @@ service:
       # Use the chassis odom until a separately declared Mid360 LIO provider
       # passes the static-drift gate. RTAB-Map still fuses RGB-D and Mid360.
       deskew_lidar: true
-      # Atlas discovers all streams; only Mid360 builds the 2D occupancy grid.
-      occupancy_sources: [lidar]
+      # Fuse the Gemini depth projection with Mid360 in the 2D occupancy grid.
+      # The deployment-owned RTAB-Map parameters below keep the grid z-up,
+      # ray-traced, and 2D; Nav2's LaserScan input remains lidar-only.
+      occupancy_sources: [lidar, depth]
       params_file: config/rtabmap_params.yaml
       sensor_providers:
         lidar3d: mid360_lidar
         odom: ranger_chassis
-        rgb: realsense_camera
-        depth: realsense_camera
+        rgb: orbbec_camera
+        depth: orbbec_camera
 
   - name: nav2
     url: https://github.com/syswonder/service-navigation-rbnx
@@ -192,9 +218,9 @@ skill:
   - name: greet
     path: ./skills/greet
     config:
-      # Bind the front RGB stream explicitly; this robot also has an Orbbec
-      # provider exposing the same camera/rgb contract.
-      camera_provider_id: realsense_camera
+      # Bind the front RGB stream explicitly so Atlas ordering cannot select a
+      # different camera when the full arm profile is restored.
+      camera_provider_id: orbbec_camera
       soma_provider_id: soma
       chassis_provider_id: ranger_chassis
       vlm:
