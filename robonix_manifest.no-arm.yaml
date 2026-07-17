@@ -57,7 +57,7 @@ system:
     listen: 0.0.0.0:50093
   scene:
     manifest: package_manifest.jetson-native.yaml
-    camera_provider_id: realsense_camera
+    camera_provider_id: orbbec_camera
     web_port: 50107
 
 primitive:
@@ -86,12 +86,32 @@ primitive:
     config:
       sentinel_timeout_s: 45.0
 
-  - name: realsense_camera
-    url: https://github.com/syswonder/primitive-intel-realsense_d435i-camera-rbnx
+  # Intel RealSense D435i disabled for the no-arm profile after the front
+  # RGB-D sensor was replaced by an Orbbec Gemini 330-series camera.
+  # - name: realsense_camera
+  #   url: https://github.com/syswonder/primitive-intel-realsense_d435i-camera-rbnx
+  #   branch: main
+  #   config:
+  #     depth_profile: 640x480x30
+  #     enable_imu: false
+  #     sentinel_timeout_s: 45.0
+
+  - name: orbbec_camera
+    url: https://github.com/syswonder/primitive-orbbec-camera
     branch: main
     config:
+      # Preserve the deployed front-camera ROS namespace and URDF frame names.
+      camera_name: camera_435i
+      camera_model: gemini330_series
+      color_profile: 640x480x30
       depth_profile: 640x480x30
+      depth_registration: true
+      enable_color: true
+      enable_depth: true
+      enable_point_cloud: false
       enable_imu: false
+      base_frame: base_link
+      cam_frame: camera_435i_color_optical_frame
       sentinel_timeout_s: 45.0
 
   # Chassis motion is enabled for the supervised Ranger acceptance run. No arm
@@ -157,8 +177,8 @@ service:
       sensor_providers:
         lidar3d: mid360_lidar
         odom: ranger_chassis
-        rgb: realsense_camera
-        depth: realsense_camera
+        rgb: orbbec_camera
+        depth: orbbec_camera
 
   - name: nav2
     url: https://github.com/syswonder/service-navigation-rbnx
@@ -192,9 +212,9 @@ skill:
   - name: greet
     path: ./skills/greet
     config:
-      # Bind the front RGB stream explicitly; this robot also has an Orbbec
-      # provider exposing the same camera/rgb contract.
-      camera_provider_id: realsense_camera
+      # Bind the front RGB stream explicitly so Atlas ordering cannot select a
+      # different camera when the full arm profile is restored.
+      camera_provider_id: orbbec_camera
       soma_provider_id: soma
       chassis_provider_id: ranger_chassis
       vlm:
