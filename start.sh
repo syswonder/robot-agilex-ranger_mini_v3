@@ -64,7 +64,7 @@ prepare_piper_can() {
   local iface="${PIPER_CAN_INTERFACE:-can_piper}"
   local bitrate="${PIPER_CAN_BITRATE:-1000000}"
   local usb_address="${PIPER_CAN_USB_ADDRESS:-1-4.1:1.0}"
-  local setup_script="${PIPER_CAN_SETUP_SCRIPT:-/home/syswonder/lhw/rbnx_piper_packages/rbnx-boot/cache/piper_ctl_rbnx/scripts/can_activate.sh}"
+  local setup_script="${PIPER_CAN_SETUP_SCRIPT:-$DEPLOY_DIR/rbnx-boot/cache/primitive-agilex-piper-arm-rbnx/scripts/can_activate.sh}"
   rg -q '^[[:space:]]*- name:[[:space:]]+piper_ctl([[:space:]]|$)' "$MANIFEST" || return 0
 
   if can_ready "$iface" "$bitrate"; then
