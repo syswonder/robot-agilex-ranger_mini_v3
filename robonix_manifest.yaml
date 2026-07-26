@@ -245,6 +245,14 @@ service:
     config:
       params_file: config/nav2_params.yaml
       bt_xml_file: config/navigate.xml
+      dynamic_speed:
+        # Must match controller_server FollowPath.max_speed_xy in nav2_params.yaml.
+        # The 75% startup limit is 0.30 m/s; runtime commands may raise it to
+        # the configured 0.40 m/s maximum but never beyond it.
+        max_speed_xy_mps: 0.4
+        default_percentage: 75
+        step_percentage: 20
+        min_percentage: 20
       scan_projection:
         enabled: true
         min_height_m: 0.30
