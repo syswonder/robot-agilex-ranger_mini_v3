@@ -246,11 +246,9 @@ service:
       params_file: config/nav2_params.yaml
       bt_xml_file: config/navigate.xml
       dynamic_speed:
-        # Match the effective DWB ceilings: max_vel_x/max_speed_xy and
-        # max_vel_theta in nav2_params.yaml. The 75% startup limit is
-        # 0.225 m/s linear and 0.45 rad/s angular.
+        # Match the effective DWB planar ceiling from max_vel_x/max_speed_xy.
+        # The 75% startup limit is 0.225 m/s.
         max_linear_speed_mps: 0.3
-        max_angular_speed_radps: 0.6
         default_percentage: 75
         step_percentage: 20
         min_percentage: 20
