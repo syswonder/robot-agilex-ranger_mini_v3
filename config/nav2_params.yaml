@@ -64,7 +64,7 @@ controller_server:
       max_vel_theta: 0.6
       # min_vel_theta: 0.05
       min_speed_xy: 0.0
-      max_speed_xy: 0.4
+      max_speed_xy: 0.3
       # Include zero and very small yaw commands so the terminal latch can
       # settle instead of oscillating around a nonzero minimum speed.
       min_speed_theta: 0.0
