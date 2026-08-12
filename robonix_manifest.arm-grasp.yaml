@@ -1,0 +1,143 @@
+manifestVersion: 1
+name: robonix-ranger-mini-v3-deploy-arm-grasp
+
+# Arm-only GRASP DEBUG profile.
+#
+# This trims robonix_manifest.yaml down to just the Piper vertical top-down
+# pick pipeline so the arm grasp + put-down flow can be iterated in isolation:
+#   primitive : robot_description, orbbec_wrist_camera, piper_ctl
+#   service   : llm_detect, grasp_pose, roboarm_ik
+#   skill     : pick
+#
+# Everything unrelated to grasping is intentionally absent: chassis, MID-360
+# LiDAR/IMU, front Gemini camera, audio, mapping, nav2, scene, explore, greet,
+# speech, memory, voiceprint, liaison, vitals. Use robonix_manifest.yaml to
+# restore the complete robot, or robonix_manifest.no-arm.yaml for chassis-only.
+#
+# system.soma points at soma.arm-grasp.yaml, a matching arm-only body so Vitals
+# does not flag the removed subsystems.
+
+catalog:
+  name: robonix.robot.agilex.ranger_mini_v3
+  version: 0.2.0
+  description: Robonix deployment for the AgileX Ranger Mini v3 robot.
+  license: Apache-2.0
+  tags: [robot, deploy, agilex, ranger_mini_v3, jetson, arm, grasp, debug]
+  maintainers:
+    - wheatfox <wheatfox17@icloud.com>
+
+env:
+  # Single-host ROS 2 transport. scripts/start.sh owns the local rmw_zenohd;
+  # native packages inherit the standard ROS 2 selector from rbnx boot.
+  ROS_DOMAIN_ID: "0"
+  RMW_IMPLEMENTATION: rmw_zenoh_cpp
+
+  # Build-time mirrors only. All model weights are prepared by build scripts;
+  # start must not download models.
+  HF_ENDPOINT: https://hf-mirror.com
+  PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+
+system:
+  atlas:
+    listen: 0.0.0.0:50051
+  executor:
+    listen: 0.0.0.0:50061
+  # Pilot lets the LLM invoke robonix/skill/pick/{pick,put_down}. Keep it so the
+  # grasp flow can be driven the same way as production.
+  pilot:
+    listen: 127.0.0.1:50071
+    vlm:
+      upstream: ${VLM_BASE_URL}
+      api_key: ${VLM_API_KEY}
+      model: ${VLM_MODEL}
+      api_format: openai
+  soma:
+    listen: 127.0.0.1:50091
+    robot_yaml: ${ROBONIX_DEPLOY_DIR}/soma.arm-grasp.yaml
+
+primitive:
+  # Publishes the Soma-owned URDF as /robot_description and the standard TF
+  # tree. This has no body config of its own; Soma is the only URDF source.
+  - name: robot_description
+    url: https://github.com/syswonder/primitive-robot-description-rbnx
+    branch: main
+    manifest: package_manifest.native.yaml
+
+  # Wrist-mounted Orbbec Dabai DC1 used by the Piper grasp pipeline. Its
+  # provider id is intentionally distinct from the (absent) front Gemini.
+  - name: orbbec_wrist_camera
+    url: https://github.com/syswonder/primitive-orbbec-dabai_dcw-camera-rbnx
+    branch: main
+    config:
+      serial_number: "CC15C4300F2"
+      enable_depth: false
+      depth_registration: false
+      color_width: 1280
+      color_height: 720
+      color_format: YUYV
+
+  - name: piper_ctl
+    url: https://github.com/syswonder/primitive-agilex-piper-arm-rbnx
+    branch: main
+    config:
+      can_port: can_piper
+      can_bitrate: 1000000
+      auto_can_setup: false
+      auto_enable: true
+      gripper_exist: true
+      gripper_val_mutiple: 2
+      sentinel_timeout_s: 30.0
+
+service:
+  - name: llm_detect
+    url: https://github.com/syswonder/service-object-detect-rbnx
+    branch: main
+    config:
+      llm_base_url: ${VLM_BASE_URL}
+      llm_api_key: ${VLM_API_KEY}
+      llm_model: ${VLM_MODEL}
+      llm_timeout_s: 60.0
+      camera_provider_id: orbbec_wrist_camera
+      temperature: 0.0
+      rotation_cam2arm: true
+      skip_depth: true
+      rgb_topic: ""
+      camera_info_topic: ""
+
+  - name: grasp_pose
+    url: https://github.com/syswonder/service-grasp-pose-rbnx
+    branch: feature/orientation-detection
+    config:
+      # Robot-specific, versioned with this deploy. Recalibrate after changing
+      # the wrist camera mount or the arm-to-workspace geometry.
+      hand_eye_calibration_file: ${ROBONIX_DEPLOY_DIR}/config/calibration/2d_homography.npy
+      default_desktop_height: -0.21
+      catch_offset: 0.00
+      box_rotation_deg: 0.0
+      output_frame: "arm/base_link"
+      approach_dist: 0.30
+
+  - name: roboarm_ik
+    url: https://github.com/syswonder/service-roboarm-ik-rbnx
+    branch: main
+    config:
+      # IK consumes the arm-only kinematic model versioned with this deployment.
+      urdf_path: ${ROBONIX_DEPLOY_DIR}/urdf/piper.urdf
+      init_joints_deg: [-1.837021, 93.526178, -36.180726, -5.065302, 17.399731, -0.323827]
+      teach_safe_joints_deg: [3.358211, 2.0, -2.0, -6.708426, 18.580102, 5.898858]
+      # put_down first carries the object here, opens the gripper, then returns
+      # to teach_safe_joints_deg. Units are degrees for joint1..joint6.
+      put_down_joints_deg: [2.990407, 166.783154, -70.978190, -4.119805, 1.697096, 10.370476]
+      reach_threshold_deg: 0.3
+      reset_feedback_timeout_s: 10.0
+      reset_post_reach_wait_s: 1.0
+      carry_to_teach_safe_waypoints_deg:
+        - [1.711088, 81.721467, -80.833939, -3.718019, 49.375697, -6.657454]
+      max_gripper_width: 0.08
+
+skill:
+  - name: pick
+    url: https://github.com/syswonder/skill-pick-vertical-grasp-rbnx
+    branch: main
+    config:
+      park_at_teach_safe_after_pick: true

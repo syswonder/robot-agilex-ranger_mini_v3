@@ -6,6 +6,9 @@ set -euo pipefail
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 MANIFEST="$DEPLOY_DIR/robonix_manifest.yaml"
 CACHE_DIR="$DEPLOY_DIR/rbnx-boot/cache"
+STATE_FILE="$DEPLOY_DIR/rbnx-boot/state.json"
+SHUTDOWN_TIMEOUT_SECONDS="${SHUTDOWN_TIMEOUT_SECONDS:-20}"
+PROCESS_SCAN_TIMEOUT_SECONDS="${PROCESS_SCAN_TIMEOUT_SECONDS:-3}"
 export PATH="$HOME/.cargo/bin:$PATH"
 
 if [[ -f "$DEPLOY_DIR/.env" ]]; then
@@ -17,18 +20,25 @@ fi
 
 collect_pids() {
   local -a pids=()
-  local pid port cmd
+  local pid port comm
+
+  # Keep shutdown functional even if a full /proc command-line scan blocks.
+  if [[ -f "$STATE_FILE" ]] && command -v jq >/dev/null 2>&1; then
+    while IFS= read -r pid; do
+      [[ -n "$pid" ]] && pids+=("$pid")
+    done < <(jq -r '.components[]?.pid // empty' "$STATE_FILE" 2>/dev/null || true)
+  fi
 
   while IFS= read -r pid; do
     [[ -n "$pid" ]] && pids+=("$pid")
-  done < <(pgrep -f "$CACHE_DIR" || true)
+  done < <(timeout "${PROCESS_SCAN_TIMEOUT_SECONDS}s" pgrep -f "$CACHE_DIR" || true)
 
   # The Piper packages currently live outside this deploy's cache directory.
   # Include them in the same graceful TERM -> KILL lifecycle instead of using
   # an unconditional kill -9 after the normal shutdown path.
   while IFS= read -r pid; do
     [[ -n "$pid" ]] && pids+=("$pid")
-  done < <(pgrep -f "piper" || true)
+  done < <(timeout "${PROCESS_SCAN_TIMEOUT_SECONDS}s" pgrep -f "piper" || true)
 
   # These are the fixed control-plane ports of this deploy. A second stack
   # cannot legitimately own them at the same time, so this also recovers from
@@ -36,8 +46,8 @@ collect_pids() {
   for port in 50051 50061 50071 50081 50091 7447; do
     while IFS= read -r pid; do
       [[ -n "$pid" ]] || continue
-      cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
-      if [[ "$cmd" =~ (robonix-|rmw_zenohd) ]]; then
+      comm="$(cat "/proc/$pid/comm" 2>/dev/null || true)"
+      if [[ "$comm" =~ (robonix-|rmw_zenohd) ]]; then
         pids+=("$pid")
       fi
     done < <(lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
@@ -59,7 +69,10 @@ stop_pids() {
 
 echo "[kill_all] deployment: $DEPLOY_DIR"
 if command -v rbnx >/dev/null 2>&1; then
-  rbnx shutdown -f "$MANIFEST" || true
+  if ! timeout --signal=TERM --kill-after=5s "${SHUTDOWN_TIMEOUT_SECONDS}s" \
+    rbnx shutdown -f "$MANIFEST"; then
+    echo "[kill_all] rbnx shutdown timed out or failed; using process fallback"
+  fi
 fi
 
 mapfile -t pids < <(collect_pids)

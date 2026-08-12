@@ -1,0 +1,113 @@
+# Soma body description for the arm-only GRASP DEBUG profile.
+#
+# Companion to robonix_manifest.arm-grasp.yaml. This trims the full-robot
+# soma.yaml down to only the parts the vertical-grasp pick pipeline needs:
+# the Piper arm (piper_ctl + roboarm_ik), the wrist Orbbec camera, and the
+# arm-perception services (llm_detect + grasp_pose). Chassis, LiDAR, IMU,
+# front Gemini, audio, mapping, nav2, scene, explore, greet, speech, memory
+# and voiceprint are intentionally absent so Vitals does not flag them.
+#
+# The active URDF stays the Ranger Mini URDF (root_link base_link) so no URDF
+# edit is required; the Piper arm is represented semantically here while
+# roboarm_ik uses its own Piper URDF for IK and grasp execution.
+
+urdf:
+  path: ./urdf/ranger_mini.urdf
+  root_link: base_link
+  model_name: ranger_mini_v3_piper_arm_grasp_debug
+
+robot:
+  id: ranger_mini_01
+  display_name: "AgileX Ranger Mini v3 — arm-only grasp debug (Piper arm + wrist Orbbec DC1)"
+  family: mobile_manipulator
+  root_part: base
+  dimensions: { length_m: 0.74, width_m: 0.50, height_m: 1.05 }
+  footprint:
+    base_frame: base_link
+    points:
+      - [0.37, 0.25]
+      - [0.37, -0.25]
+      - [-0.37, -0.25]
+      - [-0.37, 0.25]
+  mass_kg: 67.2
+  passable_door_width_m: 0.65
+
+  exports:
+    - provider_id: robot_description
+      capabilities:
+        - { path: robonix/primitive/robot_description/driver, description: "Publish the Soma-owned URDF as /robot_description and TF." }
+    - provider_id: pick
+      capabilities:
+        - { path: robonix/skill/pick/pick, description: "Pick a named table-top object with the Piper arm." }
+        - { path: robonix/skill/pick/put_down, description: "Put the held object down through the manipulation put_down service." }
+
+  components:
+    - id: base
+      type: mobile_base
+      urdf_link: base_link
+      components:
+        - id: arm
+          type: manipulator
+          exports:
+            - provider_id: piper_ctl
+              capabilities:
+                - { path: robonix/primitive/arm/joint_states, description: "Read Piper joint states." }
+                - { path: robonix/primitive/arm/arm_status, description: "Read Piper arm status." }
+                - { path: robonix/primitive/arm/end_pose, description: "Read Piper end-effector pose." }
+                - { path: robonix/primitive/arm/pos_cmd, description: "Command Piper joint and gripper positions." }
+            - provider_id: roboarm_ik
+              capabilities:
+                - { path: robonix/service/manipulation/execute_grasp, description: "Execute a Piper grasp pose using local IK." }
+                - { path: robonix/service/manipulation/reset, description: "Park or reset the Piper arm." }
+                - { path: robonix/service/manipulation/teach_safe, description: "Move the Piper arm to the teach-safe park pose." }
+                - { path: robonix/service/manipulation/put_down, description: "Carry the held object to the put-down pose and release it." }
+          components:
+            - id: gripper
+              type: parallel_jaw_gripper
+              state:
+                joint_name: gripper
+                # Piper reports about 0.079 m at the commanded 0.080 m
+                # fully-open pose. Treat that calibrated range as empty/open.
+                open_position_m: 0.080
+                open_tolerance_m: 0.003
+              exports:
+                - provider_id: piper_ctl
+                  capabilities:
+                    - { path: robonix/primitive/arm/pos_cmd, description: "Command the Piper gripper through the arm command topic." }
+
+            - id: wrist_camera
+              type: rgbd_camera
+              exports:
+                - provider_id: orbbec_wrist_camera
+                  capabilities:
+                    - { path: robonix/primitive/camera/rgb, description: "Stream wrist Orbbec DC1 RGB images for Piper object detection." }
+                    - { path: robonix/primitive/camera/depth, description: "Stream wrist Orbbec DC1 depth images when enabled." }
+                    - { path: robonix/primitive/camera/camera_info, description: "Publish wrist Orbbec DC1 color camera intrinsics." }
+                - provider_id: llm_detect
+                  capabilities:
+                    - { path: robonix/service/perception/object_detect/detect_object, description: "Detect named objects in the wrist camera image." }
+                - provider_id: grasp_pose
+                  capabilities:
+                    - { path: robonix/service/perception/grasp_pose/grasp_request, description: "Convert a 2D detection into a fixed-height vertical grasp pose." }
+
+description:
+  summary: >-
+    Arm-only grasp debug profile of the Ranger Mini v3 + Piper deploy. The
+    mobile base, LiDAR, front camera, audio, mapping and navigation are all
+    removed; only the Piper vertical top-down pick pipeline remains: llm_detect
+    detects a named object in the wrist Orbbec DC1 RGB, grasp_pose maps the
+    bbox center through a 2D homography, and roboarm_ik executes the grasp and
+    put-down through piper_ctl.
+  can_do:
+    - "Detect a named object in the wrist Orbbec DC1 camera."
+    - "Pick table-top objects with fixed-height vertical top-down grasps."
+    - "Put the held object down at a fixed pose and release it."
+  cannot_do:
+    - "Drive, map, or navigate — no chassis/LiDAR/nav in this profile."
+    - "Infer grasp height from wrist depth; grasp z comes from default_desktop_height."
+    - "Execute arbitrary 6-DoF grasps; the pick pipeline is vertical top-down only."
+  notes:
+    - "llm_detect pins the wrist DC1 provider to orbbec_wrist_camera."
+    - "piper_description is intentionally not started because its unprefixed base_link conflicts with the Ranger base_link."
+    - "Piper CAN must already be up as can_piper because piper_ctl.auto_can_setup is false."
+    - "grasp_pose loads rbnx-boot/hand-eye-data/2d_homography.npy and uses default_desktop_height as the final grasp z in arm/base_link."

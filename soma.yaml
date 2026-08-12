@@ -43,6 +43,9 @@ robot:
     - provider_id: nav2
       capabilities:
         - { path: robonix/service/navigation/navigate, description: "Navigate to a 2D goal pose." }
+        - { path: robonix/service/navigation/adjust_speed, description: "Make the active navigation run faster, slower, or normal." }
+        - { path: robonix/service/navigation/set_speed_limit, description: "Set a bounded navigation speed percentage." }
+        - { path: robonix/service/navigation/get_speed_limit, description: "Read the configured and effective navigation speed limits." }
     - provider_id: scene
       capabilities:
         - { path: robonix/system/scene/list_objects, description: "List current semantic scene objects." }

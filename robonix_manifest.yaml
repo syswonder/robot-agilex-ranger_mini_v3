@@ -118,6 +118,7 @@ primitive:
     url: https://github.com/syswonder/primitive-orbbec-dabai_dcw-camera-rbnx
     branch: main
     config:
+      serial_number: "CC15C4300F2"
       enable_depth: false
       depth_registration: false
       color_width: 1280
@@ -136,6 +137,12 @@ primitive:
     branch: main
     config:
       can_port: can_piper
+      can_bitrate: 1000000
+      auto_can_setup: false
+      auto_enable: true
+      gripper_exist: true
+      gripper_val_mutiple: 2
+      sentinel_timeout_s: 30.0
 
   # The robot's USB audio device. This is the default mic/speaker provider for
   # onboard speech; client-side audio is a separate, session-bound path.
@@ -183,18 +190,31 @@ service:
       llm_model: ${VLM_MODEL}
       llm_timeout_s: 60.0
       camera_provider_id: orbbec_wrist_camera
+      temperature: 0.0
       rotation_cam2arm: true
       skip_depth: true
+      rgb_topic: ""
+      camera_info_topic: ""
 
   - name: grasp_pose
     url: https://github.com/syswonder/service-grasp-pose-rbnx
-    branch: main
+    branch: feature/orientation-detection
     config:
       # Robot-specific, versioned with this deploy. Recalibrate after changing
       # the wrist camera mount or the arm-to-workspace geometry.
       hand_eye_calibration_file: ${ROBONIX_DEPLOY_DIR}/config/calibration/2d_homography.npy
       default_desktop_height: -0.21
       catch_offset: 0.00
+      # OBB (oriented bounding box) is NOT wired in yet: the current LLM
+      # detector and standard axis-aligned YOLO both emit 4-element
+      # bboxes, so this value has no effect in today's deployment. It is
+      # reserved for a future OBB detector (YOLO-OBB / cv2.minAreaRect)
+      # that would pass a 5th rotation element in bbox_2d. Angled grasps
+      # in this manifest come from the LLM's `orientation` label, not
+      # from this rotation value.
+      box_rotation_deg: 0.0
+      output_frame: "arm/base_link"
+      approach_dist: 0.30
 
   - name: roboarm_ik
     url: https://github.com/syswonder/service-roboarm-ik-rbnx
@@ -209,7 +229,7 @@ service:
       # to teach_safe_joints_deg. Units are degrees for joint1..joint6.
       put_down_joints_deg: [2.990407, 166.783154, -70.978190, -4.119805, 1.697096, 10.370476]
       reach_threshold_deg: 0.3
-      reset_feedback_timeout_s: 8.0
+      reset_feedback_timeout_s: 10.0
       reset_post_reach_wait_s: 1.0
       carry_to_teach_safe_waypoints_deg:
         - [1.711088, 81.721467, -80.833939, -3.718019, 49.375697, -6.657454]
