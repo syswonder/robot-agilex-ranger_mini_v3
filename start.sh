@@ -40,6 +40,31 @@ can_bus_info() {
   ethtool -i "$iface" 2>/dev/null | awk -F': ' '$1 == "bus-info" { print $2; exit }'
 }
 
+# A physical USB replug (or a cold AGX boot) leaves the kernel enumerating a
+# multi-level hub tree for several seconds before every downstream CAN
+# adapter shows up with a stable bus-info path. Running the one-shot checks
+# below during that window makes CAN prep fail even though the hardware is
+# fine a few seconds later. Retry with a short backoff instead of exiting on
+# the first miss; only give up after genuinely exhausting the window.
+retry_can_prep() {
+  local desc="$1"
+  shift
+  local attempts="${CAN_PREP_RETRIES:-6}"
+  local delay_s="${CAN_PREP_RETRY_DELAY_S:-1.5}"
+  local n
+  for ((n = 1; n <= attempts; n++)); do
+    if "$@"; then
+      return 0
+    fi
+    if ((n < attempts)); then
+      echo "$desc: attempt $n/$attempts not ready yet, retrying in ${delay_s}s (USB may still be enumerating)" >&2
+      sleep "$delay_s"
+    fi
+  done
+  echo "$desc: still not ready after $attempts attempts" >&2
+  exit 1
+}
+
 prepare_ranger_can() {
   local iface="${RANGER_CAN_INTERFACE:-can_ranger}"
   local bitrate="${RANGER_CAN_BITRATE:-500000}"
@@ -56,7 +81,7 @@ prepare_ranger_can() {
   "${elevate[@]}" ip link set "$iface" up
   can_ready "$iface" "$bitrate" || {
     echo "Ranger CAN $iface is not UP at $bitrate bps" >&2
-    exit 1
+    return 1
   }
 }
 
@@ -73,11 +98,14 @@ prepare_piper_can() {
     if [[ "$current_address" == "$usb_address" ]]; then
       return 0
     fi
-    echo "Piper CAN $iface is attached at '$current_address', expected '$usb_address'" >&2
-    exit 1
+    echo "Piper CAN $iface is attached at '$current_address', expected '$usb_address' (may still be settling)" >&2
+    return 1
   fi
 
   [[ -f "$setup_script" ]] || {
+    # A missing setup script is a real deployment misconfiguration, not a
+    # transient USB-enumeration race. Retrying cannot fix a file that does
+    # not exist, so fail immediately instead of burning the retry budget.
     echo "missing Piper CAN setup script: $setup_script" >&2
     exit 1
   }
@@ -86,7 +114,7 @@ prepare_piper_can() {
   bash "$setup_script" "$iface" "$bitrate" "$usb_address"
   can_ready "$iface" "$bitrate" && [[ "$(can_bus_info "$iface")" == "$usb_address" ]] || {
     echo "Piper CAN $iface is not ready at $bitrate bps on $usb_address" >&2
-    exit 1
+    return 1
   }
 }
 
@@ -112,8 +140,8 @@ trap 'exit 143' TERM
 # The provider is intentionally unprivileged. Configure the deployment-owned
 # SocketCAN link here, while an interactive launch can obtain sudo once. The
 # primitives still verify their interfaces and skip all sudo calls when ready.
-prepare_ranger_can
-prepare_piper_can
+retry_can_prep "Ranger CAN" prepare_ranger_can
+retry_can_prep "Piper CAN" prepare_piper_can
 
 if [[ "$RMW_IMPLEMENTATION" == "rmw_zenoh_cpp" ]]; then
   router_bin="/opt/ros/humble/lib/rmw_zenoh_cpp/rmw_zenohd"
