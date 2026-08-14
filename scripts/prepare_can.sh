@@ -59,7 +59,10 @@ can_has_traffic() {
 can_recycle() {
   local iface="$1" bitrate="$2"
   echo "[can] $iface is up but silent; cycling it" >&2
-  "${elevate[@]}" ip link set "$iface" down || return 1
+  "${elevate[@]}" ip link set "$iface" down || {
+    echo "[can] could not cycle $iface (no privileges?); leaving it as is" >&2
+    return 1
+  }
   sleep 1
   "${elevate[@]}" ip link set "$iface" type can bitrate "$bitrate" || return 1
   "${elevate[@]}" ip link set "$iface" up || return 1
@@ -76,6 +79,21 @@ require_interface() {
   return 1
 }
 
+# A silent bus is reported, never fatal. It usually means the hardware on the
+# far end is deliberately powered down -- switching the chassis off so the
+# robot cannot drive while working on perception indoors is a normal thing to
+# do, and refusing to boot for it would be worse than useless. It can also be
+# the deaf-interface case a cycle repairs, so try that once before warning.
+check_traffic() {
+  local iface="$1" bitrate="$2" hint="$3"
+  can_has_traffic "$iface" && return 0
+  can_recycle "$iface" "$bitrate" || true
+  can_has_traffic "$iface" && return 0
+  echo "[can] warning: $iface is up but receives no frames." >&2
+  echo "[can] warning: this is normal when $hint. Continuing anyway." >&2
+  return 0
+}
+
 prepare_ranger() {
   local iface="$RANGER_CAN_INTERFACE" bitrate="$RANGER_CAN_BITRATE"
   require_interface "$iface" "/etc/systemd/network/70-can-candlelight.link" || return 1
@@ -86,14 +104,8 @@ prepare_ranger() {
     "${elevate[@]}" ip link set "$iface" up
     can_ready "$iface" "$bitrate" || { echo "[can] $iface is not UP at $bitrate bps" >&2; return 1; }
   fi
-  can_has_traffic "$iface" || {
-    can_recycle "$iface" "$bitrate" || return 1
-    can_has_traffic "$iface" || {
-      echo "[can] $iface still receives nothing. Check the chassis is powered" >&2
-      echo "[can] and that the remote is not holding it in remote-control mode." >&2
-      return 1
-    }
-  }
+  check_traffic "$iface" "$bitrate" \
+    "the chassis is switched off, or its remote holds it in remote-control mode"
   echo "[can] $iface ready at $bitrate bps ($(can_bus_info "$iface"))" >&2
 }
 
@@ -111,13 +123,7 @@ prepare_piper() {
     bash "$PIPER_CAN_SETUP_SCRIPT" "$iface" "$bitrate" "$(can_bus_info "$iface")"
     can_ready "$iface" "$bitrate" || { echo "[can] $iface is not UP at $bitrate bps" >&2; return 1; }
   fi
-  can_has_traffic "$iface" || {
-    can_recycle "$iface" "$bitrate" || return 1
-    can_has_traffic "$iface" || {
-      echo "[can] $iface still receives nothing. Check the arm is powered." >&2
-      return 1
-    }
-  }
+  check_traffic "$iface" "$bitrate" "the arm is switched off"
   echo "[can] $iface ready at $bitrate bps ($(can_bus_info "$iface"))" >&2
 }
 
