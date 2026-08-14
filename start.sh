@@ -27,97 +27,6 @@ router_pid=""
 MANIFEST="${ROBONIX_MANIFEST:-$DEPLOY_DIR/robonix_manifest.yaml}"
 stack_started=0
 
-can_ready() {
-  local iface="$1"
-  local bitrate="$2"
-  local detail
-  detail="$(ip -details link show "$iface" 2>/dev/null)" || return 1
-  [[ "${detail%%$'\n'*}" == *"state UP"* ]] && [[ "$detail" == *"bitrate $bitrate"* ]]
-}
-
-can_bus_info() {
-  local iface="$1"
-  ethtool -i "$iface" 2>/dev/null | awk -F': ' '$1 == "bus-info" { print $2; exit }'
-}
-
-# A physical USB replug (or a cold AGX boot) leaves the kernel enumerating a
-# multi-level hub tree for several seconds before every downstream CAN
-# adapter shows up with a stable bus-info path. Running the one-shot checks
-# below during that window makes CAN prep fail even though the hardware is
-# fine a few seconds later. Retry with a short backoff instead of exiting on
-# the first miss; only give up after genuinely exhausting the window.
-retry_can_prep() {
-  local desc="$1"
-  shift
-  local attempts="${CAN_PREP_RETRIES:-6}"
-  local delay_s="${CAN_PREP_RETRY_DELAY_S:-1.5}"
-  local n
-  for ((n = 1; n <= attempts; n++)); do
-    if "$@"; then
-      return 0
-    fi
-    if ((n < attempts)); then
-      echo "$desc: attempt $n/$attempts not ready yet, retrying in ${delay_s}s (USB may still be enumerating)" >&2
-      sleep "$delay_s"
-    fi
-  done
-  echo "$desc: still not ready after $attempts attempts" >&2
-  exit 1
-}
-
-prepare_ranger_can() {
-  local iface="${RANGER_CAN_INTERFACE:-can_ranger}"
-  local bitrate="${RANGER_CAN_BITRATE:-500000}"
-  rg -q '^[[:space:]]*- name:[[:space:]]+ranger_chassis([[:space:]]|$)' "$MANIFEST" || return 0
-  can_ready "$iface" "$bitrate" && return 0
-
-  echo "configuring Ranger CAN $iface at $bitrate bps" >&2
-  local -a elevate=()
-  if [[ "$EUID" -ne 0 ]]; then
-    elevate=(sudo)
-  fi
-  "${elevate[@]}" ip link set "$iface" down
-  "${elevate[@]}" ip link set "$iface" type can bitrate "$bitrate"
-  "${elevate[@]}" ip link set "$iface" up
-  can_ready "$iface" "$bitrate" || {
-    echo "Ranger CAN $iface is not UP at $bitrate bps" >&2
-    return 1
-  }
-}
-
-prepare_piper_can() {
-  local iface="${PIPER_CAN_INTERFACE:-can_piper}"
-  local bitrate="${PIPER_CAN_BITRATE:-1000000}"
-  local usb_address="${PIPER_CAN_USB_ADDRESS:-1-4.1:1.0}"
-  local setup_script="${PIPER_CAN_SETUP_SCRIPT:-$DEPLOY_DIR/rbnx-boot/cache/primitive-agilex-piper-arm-rbnx/scripts/can_activate.sh}"
-  rg -q '^[[:space:]]*- name:[[:space:]]+piper_ctl([[:space:]]|$)' "$MANIFEST" || return 0
-
-  if can_ready "$iface" "$bitrate"; then
-    local current_address
-    current_address="$(can_bus_info "$iface")"
-    if [[ "$current_address" == "$usb_address" ]]; then
-      return 0
-    fi
-    echo "Piper CAN $iface is attached at '$current_address', expected '$usb_address' (may still be settling)" >&2
-    return 1
-  fi
-
-  [[ -f "$setup_script" ]] || {
-    # A missing setup script is a real deployment misconfiguration, not a
-    # transient USB-enumeration race. Retrying cannot fix a file that does
-    # not exist, so fail immediately instead of burning the retry budget.
-    echo "missing Piper CAN setup script: $setup_script" >&2
-    exit 1
-  }
-
-  echo "configuring Piper CAN $usb_address as $iface at $bitrate bps" >&2
-  bash "$setup_script" "$iface" "$bitrate" "$usb_address"
-  can_ready "$iface" "$bitrate" && [[ "$(can_bus_info "$iface")" == "$usb_address" ]] || {
-    echo "Piper CAN $iface is not ready at $bitrate bps on $usb_address" >&2
-    return 1
-  }
-}
-
 cleanup() {
   local status=$?
   trap - EXIT INT TERM
@@ -140,8 +49,18 @@ trap 'exit 143' TERM
 # The provider is intentionally unprivileged. Configure the deployment-owned
 # SocketCAN link here, while an interactive launch can obtain sudo once. The
 # primitives still verify their interfaces and skip all sudo calls when ready.
-retry_can_prep "Ranger CAN" prepare_ranger_can
-retry_can_prep "Piper CAN" prepare_piper_can
+# CAN wiring belongs to the physical machine, not to this deployment, so it
+# lives in its own script. A checkout on a robot that is wired differently
+# can replace or drop it; boot then simply skips this step.
+CAN_PREP_SCRIPT="${ROBONIX_CAN_PREP_SCRIPT:-$DEPLOY_DIR/scripts/prepare_can.sh}"
+if [[ -x "$CAN_PREP_SCRIPT" ]]; then
+  "$CAN_PREP_SCRIPT" || {
+    echo "CAN preparation failed; see $CAN_PREP_SCRIPT" >&2
+    exit 1
+  }
+elif [[ -e "$CAN_PREP_SCRIPT" ]]; then
+  echo "$CAN_PREP_SCRIPT is not executable; skipping CAN preparation" >&2
+fi
 
 if [[ "$RMW_IMPLEMENTATION" == "rmw_zenoh_cpp" ]]; then
   router_bin="/opt/ros/humble/lib/rmw_zenoh_cpp/rmw_zenohd"
